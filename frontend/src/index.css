@@ -1,0 +1,61 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+@source "../src/**/*.{ts,tsx,html}";
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* 1. DAFTARKAN VARIABEL KAMU DI DALAM THEME V4 */
+@theme {
+  --color-text: var(--text);
+  --color-text-h: var(--text-h);
+  --color-bg: var(--bg);
+  --color-border: var(--border);
+  --color-accent: var(--accent);
+
+  /* Custom sizes for v3 compatibility */
+  --spacing-7: 1.75rem;
+  --radius-4xl: 2rem;
+  --shadow-3xl: 0 35px 60px -15px rgba(0, 0, 0, 0.3);
+
+  /* Font Family */
+  --font-sans: system-ui, 'Segoe UI', Roboto, sans-serif;
+  --font-heading: system-ui, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: ui-monospace, Consolas, monospace;
+}
+
+/* 2. SETUP VARIABEL UNTUK LIGHT & DARK */
+:root {
+  --text: #6b6375;
+  --text-h: #08060d;
+  --bg: #fff;
+  --border: #e5e4e7;
+  --code-bg: #f4f3ec;
+  --accent: #aa3bff;
+  /* ... copy semua variabel light kamu di sini ... */
+}
+
+.dark {
+  --text: #9ca3af;
+  --text-h: #f3f4f6;
+  --bg: #16171d;
+  --border: #2e303a;
+  --code-bg: #1f2028;
+  --accent: #c084fc;
+
+}
+
+/* 3. KONFIGURASI BASE */
+@layer base {
+  body {
+    background-color: var(--bg);
+    color: var(--text);
+    font-family: var(--font-sans);
+    transition: background-color 0.3s, color 0.3s;
+    margin: 0;
+  }
+
+  h1,
+  h2 {
+    font-family: var(--font-heading);
+    color: var(--text-h);
+  }
+}

@@ -1,0 +1,8 @@
+* migrate fresh
+npx sequelize-cli db:migrate:undo:all
+npx sequelize-cli db:migrate
++ with seeder
+npx sequelize-cli db:seed:all
+
+* make seeder
+npx sequelize-cli seed:generate --name UserSeeder
