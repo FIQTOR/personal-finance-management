@@ -1,5 +1,4 @@
 
-import Loading from '@/components/Loading';
 import { selectAuth } from '@/store/authSlice';
 import { useAppSelector } from '@/store/hooks';
 import apiClient from '@/services/apiClient';
@@ -70,8 +69,44 @@ const ActivitiesMenu = () => {
 
     if (isLoading) {
         return (
-            <div className=' w-full h-full flex justify-center items-center relative'>
-                <Loading />
+            <div className="space-y-6 animate-pulse">
+                {/* Filters Skeleton */}
+                <div className="bg-gray-50/60 dark:bg-neutral-800/40 rounded-2xl p-5 border border-gray-100 dark:border-neutral-800/80 space-y-4">
+                    <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 rounded bg-gray-200 dark:bg-neutral-700" />
+                        <div className="h-3 w-32 rounded bg-gray-200 dark:bg-neutral-700" />
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        {[0, 1, 2].map((i) => (
+                            <div key={i} className="space-y-1">
+                                <div className="h-3 w-20 rounded bg-gray-200 dark:bg-neutral-700" />
+                                <div className="h-10 w-full rounded-xl bg-gray-200 dark:bg-neutral-700" />
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Activities List Skeleton */}
+                <div className="space-y-3">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                        <div key={i} className="bg-gray-50/60 dark:bg-neutral-800/40 rounded-2xl border border-gray-100 dark:border-neutral-800/80 p-4">
+                            <div className="flex items-start gap-3">
+                                <div className="rounded-xl p-2.5 bg-gray-200 dark:bg-neutral-700">
+                                    <div className="w-5 h-5 rounded bg-gray-300 dark:bg-neutral-600" />
+                                </div>
+                                <div className="flex-1 space-y-2">
+                                    <div className="h-3.5 w-40 rounded bg-gray-200 dark:bg-neutral-700" />
+                                    <div className="h-3 w-2/3 rounded bg-gray-200 dark:bg-neutral-700" />
+                                    <div className="flex flex-wrap gap-4 pt-2">
+                                        {[0, 1, 2].map((j) => (
+                                            <div key={j} className="h-3 w-24 rounded bg-gray-200 dark:bg-neutral-700" />
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
             </div>
         );
     }
