@@ -1,5 +1,5 @@
 {
-  "name": "authentication-module-backend",
+  "name": "personal-finance-management-backend",
   "version": "1.0.0",
   "description": "Personal finance management backend (Express + Sequelize) with authentication & RBAC (JWT, refresh cookies, Google OAuth, email verification, password reset).",
   "main": "index.js",
