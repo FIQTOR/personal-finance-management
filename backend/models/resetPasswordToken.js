@@ -14,29 +14,34 @@ const ResetPasswordToken = sequelize.define('reset_password_token', {
     references: {
       model: 'users',
       key: 'id'
-    }
+    },
+    onUpdate: 'CASCADE',
+    onDelete: 'CASCADE'
   },
-  token: {
-    type: DataTypes.STRING(100),
-    allowNull: false,
-    unique: true
+  // SHA-256 hash of the token that is emailed to the user.
+  token_hash: {
+    type: DataTypes.STRING(64),
+    allowNull: false
   },
   expires_at: {
     type: DataTypes.DATE,
     allowNull: false
   }
 }, {
+  tableName: 'reset_password_tokens',
   underscored: true,
   timestamps: true,
   createdAt: 'created_at',
-  updatedAt: 'updated_at'
+  updatedAt: 'updated_at',
+  indexes: [
+    { unique: true, fields: ['token_hash'] },
+    { fields: ['user_id'] }
+  ]
 });
 
-ResetPasswordToken.associate = (models) => {
-  ResetPasswordToken.belongsTo(models.User, {
-    foreignKey: 'user_id',
-    as: 'user'
-  });
-};
+ResetPasswordToken.belongsTo(require('./user'), {
+  foreignKey: 'user_id',
+  as: 'user'
+});
 
 module.exports = ResetPasswordToken;

@@ -1,35 +1,43 @@
 {
   "name": "authentication-module-backend",
   "version": "1.0.0",
+  "description": "Personal finance management backend (Express + Sequelize) with authentication & RBAC (JWT, refresh cookies, Google OAuth, email verification, password reset).",
   "main": "index.js",
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "nodemon index.js"
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "test": "jest",
+    "migrate": "sequelize-cli db:migrate",
+    "migrate:undo": "sequelize-cli db:migrate:undo",
+    "migrate:fresh": "sequelize-cli db:migrate:undo:all && sequelize-cli db:migrate",
+    "seed": "sequelize-cli db:seed:all"
   },
   "author": "",
   "license": "ISC",
-  "description": "",
   "dependencies": {
     "bcryptjs": "^2.4.3",
-    "body-parser": "^1.20.3",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
-    "crypto": "^1.0.1",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "express-session": "^1.18.1",
-    "fs": "^0.0.1-security",
     "googleapis": "^162.0.0",
     "jsonwebtoken": "^9.0.2",
     "multer": "^1.4.5-lts.1",
     "mysql2": "^3.11.5",
     "nodemailer": "^6.9.16",
-    "nodemon": "^3.1.7",
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0",
-    "path": "^0.12.7",
     "sequelize": "^6.37.5",
-    "sequelize-cli": "^6.6.2",
     "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "nodemon": "^3.1.7",
+    "sequelize-cli": "^6.6.2",
+    "supertest": "^7.0.0"
   }
 }

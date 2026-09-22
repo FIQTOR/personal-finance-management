@@ -1,23 +1,24 @@
 const nodemailer = require('nodemailer');
+const env = require('../config/env');
 
 const transporter = nodemailer.createTransport({
-    host: process.env.EMAIL_HOST,
-    port: process.env.EMAIL_PORT,
-    secure: false,
+    host: env.EMAIL_HOST,
+    port: env.EMAIL_PORT,
+    secure: env.EMAIL_PORT === 465,
     auth: {
-        user: process.env.EMAIL_USERNAME,
-        pass: process.env.EMAIL_PASSWORD,
+        user: env.EMAIL_USERNAME,
+        pass: env.EMAIL_PASSWORD,
     },
-    tls: {
-        rejectUnauthorized: false
-    }
+    // NOTE: do NOT disable TLS verification (tls.rejectUnauthorized:false).
+    // Gmail SMTP presents a valid certificate, so the default verification is
+    // both correct and safer against MITM attacks.
 });
 
 exports.SendVerificationEmail = async (to, token) => {
-    const url = `${process.env.FRONTEND_HOST}/verify-email?token=${token}`;
+    const url = `${env.FRONTEND_HOST}/verify-email?token=${token}`;
 
     const mailOptions = {
-        from: '"IARTY" <business@iarty.id>',
+        from: env.EMAIL_FROM,
         to: to,
         subject: 'Email Verification',
         text: `Please verify your email by clicking the following link: ${url}`,
@@ -47,10 +48,10 @@ exports.SendVerificationEmail = async (to, token) => {
 };
 
 exports.SendResetPasswordEmail = async (to, token) => {
-    const url = `${process.env.FRONTEND_HOST}/reset-password?token=${token}`;
+    const url = `${env.FRONTEND_HOST}/reset-password?token=${token}`;
 
     const mailOptions = {
-        from: '"IARTY" <business@iarty.id>',
+        from: env.EMAIL_FROM,
         to: to,
         subject: 'Password Reset Request',
         text: `Hello, You recently requested to reset your password. Click here to reset: ${url}`,

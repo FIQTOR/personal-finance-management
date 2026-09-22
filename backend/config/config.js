@@ -1,37 +1,22 @@
-require("dotenv").config();
-const env = process.env.NODE_ENV || "development";
+const env = require('./env');
 
-// kalau production → .env, kalau selain itu → .env.{env}
-const envFile = env === "production" ? ".env" : `.env.${env}`;
-
-require("dotenv").config({ path: envFile, override: true });
+/**
+ * Sequelize CLI configuration.
+ * Reads connection settings from the centralised env loader so there is a
+ * single place that knows how to build a DB config.
+ */
+const base = {
+  username: env.DB_USER,
+  password: env.DB_PASSWORD,
+  database: env.DB_NAME,
+  host: env.DB_HOST,
+  port: env.DB_PORT,
+  dialect: env.DB_DIALECT === 'pg' ? 'postgres' : env.DB_DIALECT,
+  logging: false,
+};
 
 module.exports = {
-  development: {
-    username: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME,
-    host: process.env.DB_HOST,
-    port: process.env.DB_PORT,
-
-    dialect: process.env.DB_DIALECT === 'pg' ? require('pg') : process.env.DB_DIALECT || "mysql",
-  },
-  test: {
-    username: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME,
-    host: process.env.DB_HOST,
-    port: process.env.DB_PORT,
-
-    dialect: process.env.DB_DIALECT === 'pg' ? require('pg') : process.env.DB_DIALECT || "mysql",
-  },
-  production: {
-    username: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME,
-    host: process.env.DB_HOST,
-    port: process.env.DB_PORT,
-
-    dialect: process.env.DB_DIALECT === 'pg' ? require('pg') : process.env.DB_DIALECT || "mysql",
-  },
+  development: base,
+  test: base,
+  production: base,
 };

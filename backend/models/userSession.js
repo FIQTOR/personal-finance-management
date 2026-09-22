@@ -19,8 +19,8 @@ const UserSession = sequelize.define('user_sessions', {
     onUpdate: 'CASCADE',
     onDelete: 'CASCADE'
   },
-  token: {
-    type: DataTypes.TEXT,
+  token_hash: {
+    type: DataTypes.STRING(255),
     allowNull: false
   },
   device_info: {
@@ -47,6 +47,7 @@ const UserSession = sequelize.define('user_sessions', {
     defaultValue: DataTypes.NOW
   },
 }, {
+  tableName: 'user_sessions',
   underscored: true,
   timestamps: true,
   createdAt: 'created_at',

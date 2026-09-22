@@ -1,125 +1,71 @@
+// Budget management controller.
 const budgetService = require('../services/budgetService');
+const AppError = require('../utils/AppError');
+const asyncHandler = require('../utils/asyncHandler');
+const { success } = require('../utils/response');
 
-class BudgetController {
-  async getBudgets(req, res) {
-    try {
-      const userId = req.user.id;
-      const budgets = await budgetService.getAllBudgets(userId);
-      return res.status(200).json({
-        success: true,
-        message: 'Budgets retrieved successfully',
-        data: budgets
-      });
-    } catch (error) {
-      return res.status(500).json({
-        success: false,
-        message: 'Failed to retrieve budgets',
-        errors: [error.message]
-      });
-    }
+/** List the authenticated user's budget limits. */
+const getBudgets = asyncHandler(async (req, res) => {
+  const budgets = await budgetService.getAllBudgets(req.user.id);
+  return success(res, {
+    message: 'Budgets retrieved successfully',
+    data: budgets
+  });
+});
+
+/** Get a single budget owned by the authenticated user. */
+const getBudget = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const budget = await budgetService.getBudgetById(id, req.user.id);
+  if (!budget) {
+    throw new AppError('Budget not found', 404);
   }
+  return success(res, {
+    message: 'Budget retrieved successfully',
+    data: budget
+  });
+});
 
-  async getBudget(req, res) {
-    try {
-      const userId = req.user.id;
-      const { id } = req.params;
-      const budget = await budgetService.getBudgetById(id, userId);
+/** Create a new budget limit. */
+const createBudget = asyncHandler(async (req, res) => {
+  const budget = await budgetService.createBudget(req.user.id, req.body);
+  return success(res, {
+    statusCode: 201,
+    message: 'Budget created successfully',
+    data: budget
+  });
+});
 
-      if (!budget) {
-        return res.status(404).json({
-          success: false,
-          message: 'Budget not found',
-          errors: ['Budget with specified ID does not exist']
-        });
-      }
-
-      return res.status(200).json({
-        success: true,
-        message: 'Budget retrieved successfully',
-        data: budget
-      });
-    } catch (error) {
-      return res.status(500).json({
-        success: false,
-        message: 'Failed to retrieve budget',
-        errors: [error.message]
-      });
-    }
+/** Update an existing budget limit. */
+const updateBudget = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const budget = await budgetService.updateBudget(id, req.user.id, req.body);
+  if (!budget) {
+    throw new AppError('Budget not found', 404);
   }
+  return success(res, {
+    message: 'Budget updated successfully',
+    data: budget
+  });
+});
 
-  async createBudget(req, res) {
-    try {
-      const userId = req.user.id;
-      const budget = await budgetService.createBudget(userId, req.body);
-      return res.status(201).json({
-        success: true,
-        message: 'Budget created successfully',
-        data: budget
-      });
-    } catch (error) {
-      return res.status(500).json({
-        success: false,
-        message: 'Failed to create budget',
-        errors: [error.message]
-      });
-    }
+/** Delete a budget limit. */
+const deleteBudget = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const deleted = await budgetService.deleteBudget(id, req.user.id);
+  if (!deleted) {
+    throw new AppError('Budget not found', 404);
   }
+  return success(res, {
+    message: 'Budget deleted successfully',
+    data: { id: Number(id) }
+  });
+});
 
-  async updateBudget(req, res) {
-    try {
-      const userId = req.user.id;
-      const { id } = req.params;
-      const budget = await budgetService.updateBudget(id, userId, req.body);
-
-      if (!budget) {
-        return res.status(404).json({
-          success: false,
-          message: 'Budget not found',
-          errors: ['Budget with specified ID does not exist']
-        });
-      }
-
-      return res.status(200).json({
-        success: true,
-        message: 'Budget updated successfully',
-        data: budget
-      });
-    } catch (error) {
-      return res.status(500).json({
-        success: false,
-        message: 'Failed to update budget',
-        errors: [error.message]
-      });
-    }
-  }
-
-  async deleteBudget(req, res) {
-    try {
-      const userId = req.user.id;
-      const { id } = req.params;
-      const deleted = await budgetService.deleteBudget(id, userId);
-
-      if (!deleted) {
-        return res.status(404).json({
-          success: false,
-          message: 'Budget not found',
-          errors: ['Budget with specified ID does not exist']
-        });
-      }
-
-      return res.status(200).json({
-        success: true,
-        message: 'Budget deleted successfully',
-        data: { id: Number(id) }
-      });
-    } catch (error) {
-      return res.status(500).json({
-        success: false,
-        message: 'Failed to delete budget',
-        errors: [error.message]
-      });
-    }
-  }
-}
-
-module.exports = new BudgetController();
+module.exports = {
+  getBudgets,
+  getBudget,
+  createBudget,
+  updateBudget,
+  deleteBudget
+};

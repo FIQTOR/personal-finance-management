@@ -1,48 +1,47 @@
-// index.js
-'use strict';
+/**
+ * Model barrel.
+ *
+ * Each model in this folder is defined independently using the shared
+ * `config/database.js` Sequelize instance, so this file simply re-exports them.
+ *
+ * NOTE: Do NOT re-initialise Sequelize here (the previous version tried to read
+ * a non-existent `config/config.json` and would crash if ever required). Use
+ * `config/database.js` as the single Sequelize instance.
+ */
 
-const fs = require('fs');
-const path = require('path');
-const Sequelize = require('sequelize');
-const process = require('process');
-const Role = require('./role');
+const sequelize = require('../config/database');
+
 const User = require('./user');
-const basename = path.basename(__filename);
-const env = process.env.NODE_ENV || 'development';
-const config = require(__dirname + '/../config/config.json')[env];
-const db = {};
+const Role = require('./role');
+const Permission = require('./permission');
+const RolePermission = require('./rolePermission');
+const UserSession = require('./userSession');
+const UserActivity = require('./userActivity');
+const FailedLoginAttempt = require('./failedLoginAttempt');
+const ResetPasswordToken = require('./resetPasswordToken');
+const VerificationToken = require('./verificationToken');
 
-let sequelize;
-if (config.use_env_variable) {
-  sequelize = new Sequelize(process.env[config.use_env_variable], config);
-} else {
-  sequelize = new Sequelize(config.database, config.username, config.password, config);
-}
+// Finance domain models
+const Category = require('./category');
+const Transaction = require('./transaction');
+const Budget = require('./budget');
+const Goal = require('./goal');
+const AppSetting = require('./appSetting');
 
-fs
-  .readdirSync(__dirname)
-  .filter(file => {
-    return (
-      file.indexOf('.') !== 0 &&
-      file !== basename &&
-      file.slice(-3) === '.js' &&
-      file.indexOf('.test.js') === -1
-    );
-  })
-  .forEach(file => {
-    const model = require(path.join(__dirname, file))(sequelize, Sequelize.DataTypes);
-    db[model.name] = model;
-  });
-
-// Initialize associations for all models
-Object.keys(db).forEach(modelName => {
-  if (db[modelName].associate) {
-    db[modelName].associate(db);
-  }
-});
-
-db.sequelize = sequelize;
-db.Sequelize = Sequelize;
-
-module.exports = db;
-
+module.exports = {
+    sequelize,
+    User,
+    Role,
+    Permission,
+    RolePermission,
+    UserSession,
+    UserActivity,
+    FailedLoginAttempt,
+    ResetPasswordToken,
+    VerificationToken,
+    Category,
+    Transaction,
+    Budget,
+    Goal,
+    AppSetting,
+};

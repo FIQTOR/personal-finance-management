@@ -1,81 +1,57 @@
 const passport = require('passport');
-const User = require("../models/user");
-const { sign } = require("jsonwebtoken");
-const bcrypt = require("bcryptjs");
+const crypto = require('crypto');
+const User = require('../models/user');
 const Role = require('../models/role');
-const Permission = require('../models/permission');
 const RolePermission = require('../models/rolePermission');
 const AppSetting = require('../models/appSetting');
-const UserActivity = require('../models/userActivity');
-const UserSession = require('../models/userSession');
+const env = require('../config/env');
+const AppError = require('../utils/AppError');
+const { hashPassword } = require('../utils/password');
+const { safeInternalPath } = require('../utils/sanitize');
+const activityService = require('../services/activityService');
+const authService = require('../services/authService');
 
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 
-// Configure Passport with Google OAuth strategy
+// Configure Passport with Google OAuth strategy.
 passport.use(new GoogleStrategy(
     {
-        clientID: process.env.GOOGLE_CLIENT_ID,
-        clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-        callbackURL: "/api/auth/google/callback", // placeholder (relative path)
-        passReqToCallback: true
+        clientID: env.GOOGLE_CLIENT_ID,
+        clientSecret: env.GOOGLE_CLIENT_SECRET,
+        callbackURL: '/api/auth/google/callback',
+        passReqToCallback: true,
     },
     async (req, accessToken, refreshToken, profile, done) => {
         try {
-            let user = await User.findOne({ where: { email: profile.emails[0].value } });
+            const email = profile.emails?.[0]?.value;
+            if (!email) return done(new Error('Google account has no email'), null);
+
+            let user = await User.findOne({ where: { email } });
 
             if (!user) {
-                const salt = await bcrypt.genSalt(10);
-                const randomPassword = Math.random().toString(36).slice(-8);
-                const hash = await bcrypt.hash(randomPassword, salt);
+                const role = await Role.findOne({ where: { name: 'user' } });
+                if (!role) return done(new Error('Role not found'), null);
 
-                let role = await Role.findOne({ where: { name: 'user' } });
-                if (!role) {
-                    role = await Role.create({ name: 'user', description: 'Personal Finance System Owner' });
-                }
-
-                const defaultPermissions = [
-                    { name: 'view_dashboard', description: 'Can view dashboard' },
-                    { name: 'manage_users', description: 'Can manage users' },
-                    { name: 'manage_roles', description: 'Can manage roles and permissions' },
-                    { name: 'all_access', description: 'Has all access permissions' }
-                ];
-
-                for (const permData of defaultPermissions) {
-                    const [perm] = await Permission.findOrCreate({
-                        where: { name: permData.name },
-                        defaults: { description: permData.description }
-                    });
-                    await RolePermission.findOrCreate({
-                        where: { role_id: role.id, permission_id: perm.id }
-                    });
-                }
-
+                const randomPassword = crypto.randomBytes(24).toString('hex');
                 user = await User.create({
                     google_id: profile.id,
                     name: profile.displayName,
-                    email: profile.emails[0].value,
+                    email,
                     is_verified: true,
-                    avatar_url: profile.photos[0].value,
+                    avatar_url: profile.photos?.[0]?.value || null,
                     role_id: role.id,
-                    password: hash,
-                    created_at: new Date(),
-                    updated_at: new Date()
+                    password: await hashPassword(randomPassword),
                 });
-            }
-
-            await UserActivity.create({
-                user_id: user.id,
-                activity_type: 'google_login',
-                status: 'info',
-                description: 'User logged in via Google',
-                ip_address: 'Google OAuth',
-                user_agent: 'Google OAuth Service'
-            });
-
-            if (user && !user.google_id) {
+            } else if (!user.google_id) {
                 user.google_id = profile.id;
                 await user.save();
             }
+
+            await activityService.logActivity(req, {
+                userId: user.id,
+                activityType: 'google_login',
+                description: 'User logged in via Google',
+            });
 
             return done(null, user);
         } catch (error) {
@@ -84,9 +60,7 @@ passport.use(new GoogleStrategy(
     }
 ));
 
-passport.serializeUser((user, done) => {
-    done(null, user.id);
-});
+passport.serializeUser((user, done) => done(null, user.id));
 
 passport.deserializeUser(async (id, done) => {
     try {
@@ -97,129 +71,87 @@ passport.deserializeUser(async (id, done) => {
     }
 });
 
-// Utility to build base URL automatically
+/**
+ * Build the absolute base URL for the current request.
+ * @param {import('express').Request} req
+ */
 function getBaseUrl(req) {
-    if (process.env.NODE_ENV === "production") {
-        return `https://${req.get("host")}`;
-    }
-    return req.protocol + "://" + req.get("host"); // dev
+    if (env.isProduction) return `https://${req.get('host')}`;
+    return `${req.protocol}://${req.get('host')}`;
 }
 
-// Redirect user to Google login
+// Redirect the user to Google's consent screen.
+// The `origin` query is validated as a safe internal path; currency/lang are
+// passed separately so they cannot smuggle an external redirect.
 const loginWithGoogle = (req, res, next) => {
     const baseUrl = getBaseUrl(req);
-    const { currency, lang, origin } = req.query;
-    const stateObj = { origin: origin || '/panel/dashboard', currency, lang };
-    const state = Buffer.from(JSON.stringify(stateObj)).toString('base64');
+    const origin = safeInternalPath(req.query.origin, '/panel/dashboard');
+    const { currency, lang } = req.query;
 
-    passport.authenticate("google", {
-        scope: ["profile", "email"],
+    // Encode the small, validated state payload (origin is already sanitised).
+    const state = Buffer.from(JSON.stringify({ origin, currency, lang })).toString('base64');
+
+    passport.authenticate('google', {
+        scope: ['profile', 'email'],
         callbackURL: `${baseUrl}/api/auth/google/callback`,
-        state
+        state,
     })(req, res, next);
 };
 
-// Handle Google OAuth callback
+// Handle the Google OAuth callback.
 const googleCallback = [
     (req, res, next) => {
         const baseUrl = getBaseUrl(req);
-        passport.authenticate("google", {
-            failureRedirect: `${process.env.FRONTEND_HOST}`,
-            callbackURL: `${baseUrl}/api/auth/google/callback`
+        passport.authenticate('google', {
+            failureRedirect: `${env.FRONTEND_HOST}/signin`,
+            callbackURL: `${baseUrl}/api/auth/google/callback`,
         })(req, res, next);
     },
-    async (req, res) => {
-        const user = await User.findOne({
-            where: { id: req.user.id },
-            include: [{
-                association: 'role',
-                attributes: ['name'],
-                include: [{
-                    association: 'permissions',
-                    attributes: ['name'],
-                    through: RolePermission
-                }]
-            }]
-        });
-
-        if (!user || !user.role) {
-            return res.status(404).json({ status: "failed", message: "User or role not found!" });
-        }
-
-        if (!process.env.ACCESS_TOKEN_SECRET || !process.env.REFRESH_TOKEN_SECRET) {
-            throw new Error("Token secrets are not defined");
-        }
-
-        const refreshToken = sign(
-            {
-                id: user.id,
-                name: user.name,
-                email: user.email,
-                role: user.role.name,
-                avatar_url: user.avatar_url,
-                is_verified: user.is_verified,
-                is_blocked: user.is_blocked,
-                created_at: user.created_at,
-                updated_at: user.updated_at,
-                password: undefined
-            },
-            process.env.REFRESH_TOKEN_SECRET,
-            { expiresIn: "1d" }
-        );
-
-        const cookieMaxAge = 30 * 24 * 60 * 60 * 1000;
-
-        await UserSession.create({
-            user_id: user.id,
-            token: refreshToken,
-            device_info: req.headers['user-agent'],
-            ip_address: req.ip,
-            expires_at: new Date(Date.now() + cookieMaxAge)
-        });
-
-        // Set refresh token as HTTP-only cookie
-        if (process.env.NODE_ENV === 'development') {
-            res.cookie("refreshToken", refreshToken, {
-                httpOnly: true,
-                secure: true,
-                sameSite: "None",
-                maxAge: cookieMaxAge,
-                path: "/",
-            });
-        } else {
-            res.cookie("refreshToken", refreshToken, {
-                httpOnly: true,
-                secure: true,
-                sameSite: "None",
-                domain: ".iarty.id", // Change this sync your domain
-                maxAge: cookieMaxAge,
-                path: "/",
-            });
-        }
-
-        const origin = req.query.state || '/panel/dashboard';
-        let stateObj = { origin };
+    async (req, res, next) => {
         try {
-            if (req.query.state) {
-                const decodedState = Buffer.from(req.query.state, 'base64').toString('utf-8');
-                const parsed = JSON.parse(decodedState);
-                if (parsed && typeof parsed === 'object') {
-                    stateObj = parsed;
-                }
+            const user = await User.findOne({
+                where: { id: req.user.id },
+                include: [{
+                    association: 'role',
+                    attributes: ['name'],
+                    include: [{
+                        association: 'permissions',
+                        attributes: ['name'],
+                        through: RolePermission,
+                    }],
+                }],
+            });
+
+            if (!user || !user.role) {
+                throw new AppError('User or role not found!', 404, { code: 'USER_NOT_FOUND' });
             }
-        } catch {
-            // fallback
-        }
 
-        if (stateObj.currency) {
-            await AppSetting.upsert({ key: 'default_currency', value: stateObj.currency });
-        }
-        if (stateObj.lang) {
-            await AppSetting.upsert({ key: 'default_language', value: stateObj.lang });
-        }
+            await authService.issueTokens(req, res, user, { rememberMe: true });
 
-        res.redirect(`${process.env.FRONTEND_HOST}${stateObj.origin || '/panel/dashboard'}`);
-    }
+            // Decode the (validated) state payload for redirect + app settings.
+            let state = {};
+            try {
+                if (req.query.state) {
+                    state = JSON.parse(Buffer.from(req.query.state, 'base64').toString('utf-8'));
+                }
+            } catch {
+                state = {};
+            }
+
+            if (state.currency) {
+                await AppSetting.upsert({ key: 'default_currency', value: state.currency });
+            }
+            if (state.lang) {
+                await AppSetting.upsert({ key: 'default_language', value: state.lang });
+            }
+
+            // Always re-validate the redirect target (defence in depth).
+            const redirectPath = safeInternalPath(state.origin, '/panel/dashboard');
+            return res.redirect(`${env.FRONTEND_HOST}${redirectPath}`);
+        } catch (error) {
+            return next(error);
+        }
+    },
 ];
 
 module.exports = { loginWithGoogle, googleCallback };

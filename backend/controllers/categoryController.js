@@ -1,125 +1,71 @@
+// Category management controller.
 const categoryService = require('../services/categoryService');
+const AppError = require('../utils/AppError');
+const asyncHandler = require('../utils/asyncHandler');
+const { success } = require('../utils/response');
 
-class CategoryController {
-  async getCategories(req, res) {
-    try {
-      const userId = req.user.id;
-      const categories = await categoryService.getAllCategories(userId);
-      return res.status(200).json({
-        success: true,
-        message: 'Categories retrieved successfully',
-        data: categories
-      });
-    } catch (error) {
-      return res.status(500).json({
-        success: false,
-        message: 'Failed to retrieve categories',
-        errors: [error.message]
-      });
-    }
+/** List the authenticated user's categories. */
+const getCategories = asyncHandler(async (req, res) => {
+  const categories = await categoryService.getAllCategories(req.user.id);
+  return success(res, {
+    message: 'Categories retrieved successfully',
+    data: categories
+  });
+});
+
+/** Get a single category owned by the authenticated user. */
+const getCategory = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const category = await categoryService.getCategoryById(id, req.user.id);
+  if (!category) {
+    throw new AppError('Category not found', 404);
   }
+  return success(res, {
+    message: 'Category retrieved successfully',
+    data: category
+  });
+});
 
-  async getCategory(req, res) {
-    try {
-      const userId = req.user.id;
-      const { id } = req.params;
-      const category = await categoryService.getCategoryById(id, userId);
+/** Create a new category. */
+const createCategory = asyncHandler(async (req, res) => {
+  const category = await categoryService.createCategory(req.user.id, req.body);
+  return success(res, {
+    statusCode: 201,
+    message: 'Category created successfully',
+    data: category
+  });
+});
 
-      if (!category) {
-        return res.status(404).json({
-          success: false,
-          message: 'Category not found',
-          errors: ['Category with specified ID does not exist']
-        });
-      }
-
-      return res.status(200).json({
-        success: true,
-        message: 'Category retrieved successfully',
-        data: category
-      });
-    } catch (error) {
-      return res.status(500).json({
-        success: false,
-        message: 'Failed to retrieve category',
-        errors: [error.message]
-      });
-    }
+/** Update an existing category. */
+const updateCategory = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const category = await categoryService.updateCategory(id, req.user.id, req.body);
+  if (!category) {
+    throw new AppError('Category not found', 404);
   }
+  return success(res, {
+    message: 'Category updated successfully',
+    data: category
+  });
+});
 
-  async createCategory(req, res) {
-    try {
-      const userId = req.user.id;
-      const category = await categoryService.createCategory(userId, req.body);
-      return res.status(201).json({
-        success: true,
-        message: 'Category created successfully',
-        data: category
-      });
-    } catch (error) {
-      return res.status(500).json({
-        success: false,
-        message: 'Failed to create category',
-        errors: [error.message]
-      });
-    }
+/** Delete a category. */
+const deleteCategory = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const deleted = await categoryService.deleteCategory(id, req.user.id);
+  if (!deleted) {
+    throw new AppError('Category not found', 404);
   }
+  return success(res, {
+    message: 'Category deleted successfully',
+    data: { id: Number(id) }
+  });
+});
 
-  async updateCategory(req, res) {
-    try {
-      const userId = req.user.id;
-      const { id } = req.params;
-      const category = await categoryService.updateCategory(id, userId, req.body);
-
-      if (!category) {
-        return res.status(404).json({
-          success: false,
-          message: 'Category not found',
-          errors: ['Category with specified ID does not exist']
-        });
-      }
-
-      return res.status(200).json({
-        success: true,
-        message: 'Category updated successfully',
-        data: category
-      });
-    } catch (error) {
-      return res.status(500).json({
-        success: false,
-        message: 'Failed to update category',
-        errors: [error.message]
-      });
-    }
-  }
-
-  async deleteCategory(req, res) {
-    try {
-      const userId = req.user.id;
-      const { id } = req.params;
-      const deleted = await categoryService.deleteCategory(id, userId);
-
-      if (!deleted) {
-        return res.status(404).json({
-          success: false,
-          message: 'Category not found',
-          errors: ['Category with specified ID does not exist']
-        });
-      }
-
-      return res.status(200).json({
-        success: true,
-        message: 'Category deleted successfully',
-        data: { id: Number(id) }
-      });
-    } catch (error) {
-      return res.status(500).json({
-        success: false,
-        message: 'Failed to delete category',
-        errors: [error.message]
-      });
-    }
-  }
-}
-
-module.exports = new CategoryController();
+module.exports = {
+  getCategories,
+  getCategory,
+  createCategory,
+  updateCategory,
+  deleteCategory
+};

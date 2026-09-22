@@ -1,43 +1,32 @@
 const AppSetting = require('../models/appSetting');
+const asyncHandler = require('../utils/asyncHandler');
+const { success } = require('../utils/response');
 
-exports.getSettings = async (req, res) => {
-  try {
-    const settings = await AppSetting.findAll();
-    const settingsMap = {};
-    settings.forEach((s) => {
-      settingsMap[s.key] = s.value;
-    });
+// Only these setting keys may be written by clients (allow-list).
+const ALLOWED_SETTING_KEYS = ['default_currency', 'default_language'];
 
-    return res.status(200).json({
-      success: true,
-      data: settingsMap
-    });
-  } catch (error) {
-    return res.status(500).json({ success: false, message: error.message });
-  }
+const toMap = (settings) => {
+  const map = {};
+  settings.forEach((s) => {
+    map[s.key] = s.value;
+  });
+  return map;
 };
 
-exports.updateSettings = async (req, res) => {
-  try {
-    const settingsData = req.body; // e.g. { default_language: 'id', default_currency: 'IDR' }
-    for (const [key, value] of Object.entries(settingsData)) {
-      if (typeof key === 'string' && key.trim()) {
-        await AppSetting.upsert({ key, value: String(value) });
-      }
+exports.getSettings = asyncHandler(async (req, res) => {
+  const settings = await AppSetting.findAll();
+  return success(res, { message: 'Settings retrieved successfully', data: toMap(settings) });
+});
+
+exports.updateSettings = asyncHandler(async (req, res) => {
+  const settingsData = req.body || {};
+
+  for (const [key, value] of Object.entries(settingsData)) {
+    if (ALLOWED_SETTING_KEYS.includes(key)) {
+      await AppSetting.upsert({ key, value: String(value) });
     }
-
-    const updatedSettings = await AppSetting.findAll();
-    const settingsMap = {};
-    updatedSettings.forEach((s) => {
-      settingsMap[s.key] = s.value;
-    });
-
-    return res.status(200).json({
-      success: true,
-      message: 'Settings updated successfully',
-      data: settingsMap
-    });
-  } catch (error) {
-    return res.status(500).json({ success: false, message: error.message });
   }
-};
+
+  const updatedSettings = await AppSetting.findAll();
+  return success(res, { message: 'Settings updated successfully', data: toMap(updatedSettings) });
+});

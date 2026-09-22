@@ -100,10 +100,23 @@ const User = sequelize.define('user', {
         }
     },
 }, {
+    tableName: 'users',
     underscored: true,
     timestamps: true,
     createdAt: 'created_at',
-    updatedAt: 'updated_at'
+    updatedAt: 'updated_at',
+    // Never expose the password hash / OAuth id / password-change time by default.
+    // Auth flows that need the password must use the `withSecrets` scope.
+    defaultScope: {
+        attributes: { exclude: ['password', 'google_id', 'last_password_change'] }
+    },
+    scopes: {
+        withSecrets: { attributes: { include: ['password'] } },
+    },
+    indexes: [
+        { unique: true, fields: ['email'] },
+        { fields: ['role_id'] }
+    ]
 });
 
 User.belongsTo(Role, {

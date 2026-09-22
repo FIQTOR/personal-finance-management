@@ -1,331 +1,181 @@
-// Import required models
+// Role management controller.
+const { Op } = require('sequelize');
 const Role = require('../models/role');
 const Permission = require('../models/permission');
 const RolePermission = require('../models/rolePermission');
-const { Op } = require('sequelize');
 const User = require('../models/user');
-const UserSession = require('../models/userSession');
-const UserActivity = require('../models/userActivity');
+const AppError = require('../utils/AppError');
+const asyncHandler = require('../utils/asyncHandler');
+const { success } = require('../utils/response');
+const activityService = require('../services/activityService');
 
-/**
- * Get all roles with their permissions
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- * @returns {Object} JSON response containing all roles and their associated permissions
- * @description Retrieves all roles from the database including their associated permissions
- */
-const getRoles = async (req, res) => {
-    try {
-        const {
-            search = '',
-            page = 1,
-            limit = 10,
-            orderBy = 'created_at', // Changed from createdAt
-            order = 'DESC'
-        } = req.query;
+const DEFAULT_ROLE_ID = 1;
 
-        // Calculate offset for pagination
-        const offset = (page - 1) * limit;
+/** List roles with pagination, search and permissions. */
+const getRoles = asyncHandler(async (req, res) => {
+    const { search = '', page = 1, limit = 10, orderBy = 'created_at', order = 'DESC' } = req.query;
 
-        // Build where clause for search
-        const whereClause = search
-            ? {
-                [Op.or]: [
-                    { name: { [Op.like]: `%${search}%` } },
-                    { description: { [Op.like]: `%${search}%` } }
-                ]
-            }
-            : {};
-
-        // Get total count for pagination
-        const total = await Role.count({ where: whereClause });
-
-        // Find all roles with pagination and sorting
-        const roles = await Role.findAll({
-            where: whereClause,
-            order: [[orderBy, order]],
-            limit: parseInt(limit),
-            offset: offset,
-            include: [
-                {
-                    association: 'permissions',
-                    through: RolePermission
-                }
-            ]
-        });
-
-        // Process roles to include creator and updater information
-        for (const role of roles) {
-            if (role.created_by) {
-                const creator = await User.findByPk(role.created_by, {
-                    attributes: ['name']
-                });
-                role.dataValues.creator = creator;
-            }
-
-            if (role.updated_by) {
-                const updater = await User.findByPk(role.updated_by, {
-                    attributes: ['name']
-                });
-                role.dataValues.updater = updater;
-            }
+    const offset = (Number(page) - 1) * Number(limit);
+    const whereClause = search
+        ? {
+            [Op.or]: [
+                { name: { [Op.like]: `%${search}%` } },
+                { description: { [Op.like]: `%${search}%` } },
+            ],
         }
+        : {};
 
-        res.status(200).json({
-            status: 'success',
-            data: roles,
+    const total = await Role.count({ where: whereClause });
+
+    const roles = await Role.findAll({
+        where: whereClause,
+        order: [[orderBy, order]],
+        limit: Number(limit),
+        offset,
+        include: [{
+            association: 'permissions',
+            through: RolePermission,
+        }],
+    });
+
+    // Attach creator / updater names.
+    for (const role of roles) {
+        if (role.created_by) {
+            role.dataValues.creator = await User.findByPk(role.created_by, { attributes: ['name'] });
+        }
+        if (role.updated_by) {
+            role.dataValues.updater = await User.findByPk(role.updated_by, { attributes: ['name'] });
+        }
+    }
+
+    return success(res, {
+        message: 'Roles retrieved successfully',
+        data: {
+            roles,
             total,
-            page: parseInt(page),
-            totalPages: Math.ceil(total / limit)
-        });
-    } catch (error) {
-        console.error(error)
-        res.status(500).json({ status: 'error', message: error.message });
+            page: Number(page),
+            totalPages: Math.ceil(total / limit),
+        },
+    });
+});
+
+/** Get a single role with its permissions. */
+const getRole = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+
+    const role = await Role.findOne({
+        where: { id },
+        include: [{ association: 'permissions', through: RolePermission }],
+    });
+
+    if (!role) {
+        throw new AppError('Role not found', 404, { code: 'ROLE_NOT_FOUND' });
     }
-};
 
-/**
- * Get a single role by ID with its permissions
- * @param {Object} req - Express request object containing role ID in params
- * @param {Object} res - Express response object
- * @returns {Object} JSON response containing the role and its associated permissions
- * @description Retrieves a specific role from the database including its associated permissions
- */
-const getRole = async (req, res) => {
-    try {
-        const { id } = req.params;
+    return success(res, { message: 'Role retrieved successfully', data: { role } });
+});
 
-        // Find the role
-        const role = await Role.findOne({
-            where: { id: id },
-            include: {
-                association: 'permissions',
-                through: RolePermission
-            }
-        });
+/** Create a new role, optionally assigning permissions. */
+const createRole = asyncHandler(async (req, res) => {
+    const { name, description, permissions } = req.body;
 
-        if (!role) {
-            return res.status(404).json({
-                status: 'error',
-                message: 'Role not found'
-            });
-        }
-
-        res.status(200).json({
-            status: 'success',
-            role: role
-        });
-    } catch (error) {
-        res.status(500).json({
-            status: 'error',
-            message: error.message
-        });
+    if (!name || !description) {
+        throw new AppError('Name and description are required', 400, { code: 'MISSING_FIELDS' });
     }
-};
 
-/**
- * Create a new role
- * @param {Object} req - Express request object containing role details in body
- * @param {Object} res - Express response object
- * @returns {Object} JSON response with the created role and its permissions
- * @description Creates a new role with specified permissions
- */
-const createRole = async (req, res) => {
-
-    try {
-
-
-        // Extract role details
-        const { name, description, permissions } = req.body;
-        // Validate request body
-        if (!name || !description) {
-            return res.status(400).json({
-                status: 'error',
-                message: 'Name and description are required'
-            });
-        }
-
-        // Check if role name already exists
-        const existingRole = await Role.findOne({ where: { name } });
-        if (existingRole) {
-            return res.status(400).json({
-                status: 'error',
-                message: 'Role name already exists'
-            });
-        }
-
-        // Create new role
-        const role = await Role.create({ name, description, created_by: req.user.id });
-
-        // Validate and assign permissions if provided
-        if (permissions && Array.isArray(permissions)) {
-            // Verify all permissions exist
-            const existingPermissions = await Permission.findAll({
-                where: { id: permissions }
-            });
-
-            if (existingPermissions.length !== permissions.length) {
-                await role.destroy(); // Rollback role creation
-                return res.status(400).json({
-                    status: 'error',
-                    message: 'One or more invalid permission IDs provided'
-                });
-            }
-
-            // Create role-permission associations
-            await role.setPermissions(permissions);
-        }
-
-        // Fetch the created role with its permissions using association
-        const roleWithPermissions = await Role.findByPk(role.id, {
-            include: [{
-                model: Permission,
-                as: 'permissions',
-            }]
-        });
-
-        // Log role creation activity
-        await UserActivity.create({
-            user_id: req.user.id,
-            activity_type: 'created_role',
-            status: 'info',
-            description: `Created role: ${role.name}`,
-            ip_address: req.ip,
-            is_general: false,
-            user_agent: req.headers['user-agent']
-        });
-
-        res.status(201).json({
-            status: 'success',
-            message: 'Role created successfully',
-            data: roleWithPermissions
-        });
-    } catch (error) {
-        res.status(500).json({ status: 'error', message: error.message });
+    const existingRole = await Role.findOne({ where: { name } });
+    if (existingRole) {
+        throw new AppError('Role name already exists', 400, { code: 'ROLE_EXISTS' });
     }
-};
 
-/**
- * Update an existing role
- * @param {Object} req - Express request object containing role ID in params and update data in body
- * @param {Object} res - Express response object
- * @returns {Object} JSON response with the updated role and its permissions
- * @description Updates a role's details and permissions
- */
-const updateRole = async (req, res) => {
-    try {
+    const role = await Role.create({ name, description, created_by: req.user.id });
 
-        // Extract role ID and update data
-        const { id } = req.params;
-        const { name, description, permissions } = req.body;
-
-        // Find the role to update with its current permissions
-        const role = await Role.findByPk(id);
-        if (!role) {
-            return res.status(404).json({ status: 'error', message: 'Role not found' });
+    if (permissions && Array.isArray(permissions)) {
+        const existingPermissions = await Permission.findAll({ where: { id: permissions } });
+        if (existingPermissions.length !== permissions.length) {
+            await role.destroy();
+            throw new AppError('One or more invalid permission IDs provided', 400, { code: 'INVALID_PERMISSION' });
         }
-
-        // Update role details
-        await role.update({ name, description, updated_by: req.user.id });
-
-        // Update permissions if provided
-        if (permissions) {
-            // Use setPermissions method provided by Sequelize association
-            await role.setPermissions(permissions);
-        }
-
-        // Fetch updated role with permissions
-        const updatedRole = await Role.findOne({
-            where: { id: id },
-            include: {
-                association: 'permissions',
-                through: { attributes: [] } // Exclude junction table attributes
-            }
-        });
-
-        // Log role creation activity
-        await UserActivity.create({
-            user_id: req.user.id,
-            activity_type: 'updated_role',
-            status: 'info',
-            description: `Updated role: ${role.name}`,
-            ip_address: req.ip,
-            is_general: false,
-            user_agent: req.headers['user-agent']
-        });
-
-        res.status(200).json({
-            status: 'success',
-            message: 'Role updated successfully',
-            data: updatedRole
-        });
-    } catch (error) {
-        res.status(500).json({ status: 'error', message: error.message });
+        await role.setPermissions(permissions);
     }
-};
 
-/**
- * Delete a role
- * @param {Object} req - Express request object containing role ID in params
- * @param {Object} res - Express response object
- * @returns {Object} JSON response confirming deletion
- * @description Deletes a role from the database
- */
-const deleteRole = async (req, res) => {
+    const roleWithPermissions = await Role.findByPk(role.id, {
+        include: [{ model: Permission, as: 'permissions' }],
+    });
 
-    try {
+    await activityService.logActivity(req, {
+        userId: req.user.id,
+        activityType: 'created_role',
+        description: `Created role: ${role.name}`,
+        isGeneral: false,
+    });
 
+    return success(res, {
+        statusCode: 201,
+        message: 'Role created successfully',
+        data: roleWithPermissions,
+    });
+});
 
-        const { id } = req.params;
+/** Update a role and (optionally) its permissions. */
+const updateRole = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { name, description, permissions } = req.body;
 
-        // Find the role to delete
-        const role = await Role.findByPk(id);
-
-        if (!role) {
-            return res.status(404).json({ status: 'error', message: 'Role not found' });
-        }
-
-        // Update all users with this role_id to have role_id = 1 (default role)
-        await User.update(
-            { role_id: 1 },
-            { where: { role_id: id } }
-        );
-
-        // Delete all role-permission associations for this role
-        await RolePermission.destroy({
-            where: { role_id: role.id }
-        });
-
-        // Log role creation activity
-        await UserActivity.create({
-            user_id: req.user.id,
-            activity_type: 'deleted_role',
-            status: 'info',
-            description: `Deleted role: ${role.name}`,
-            ip_address: req.ip,
-            is_general: false,
-            user_agent: req.headers['user-agent']
-        });
-
-        // Delete the role
-        await role.destroy();
-
-
-        res.status(200).json({
-            status: 'success',
-            message: 'Role deleted successfully and associated users updated to default role'
-        });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ status: 'error', message: error.message });
+    const role = await Role.findByPk(id);
+    if (!role) {
+        throw new AppError('Role not found', 404, { code: 'ROLE_NOT_FOUND' });
     }
-};
 
-// Export controller functions
-module.exports = {
-    getRoles,
-    getRole,
-    createRole,
-    updateRole,
-    deleteRole
-};
+    await role.update({ name, description, updated_by: req.user.id });
+
+    if (permissions) {
+        await role.setPermissions(permissions);
+    }
+
+    const updatedRole = await Role.findOne({
+        where: { id },
+        include: [{ association: 'permissions', through: { attributes: [] } }],
+    });
+
+    await activityService.logActivity(req, {
+        userId: req.user.id,
+        activityType: 'updated_role',
+        description: `Updated role: ${role.name}`,
+        isGeneral: false,
+    });
+
+    return success(res, { message: 'Role updated successfully', data: updatedRole });
+});
+
+/** Delete a role and reassign affected users to the default role. */
+const deleteRole = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+
+    if (Number(id) === DEFAULT_ROLE_ID) {
+        throw new AppError('Cannot delete the default role', 400, { code: 'PROTECTED_ROLE' });
+    }
+
+    const role = await Role.findByPk(id);
+    if (!role) {
+        throw new AppError('Role not found', 404, { code: 'ROLE_NOT_FOUND' });
+    }
+
+    await User.update({ role_id: DEFAULT_ROLE_ID }, { where: { role_id: id } });
+    await RolePermission.destroy({ where: { role_id: role.id } });
+
+    await activityService.logActivity(req, {
+        userId: req.user.id,
+        activityType: 'deleted_role',
+        description: `Deleted role: ${role.name}`,
+        isGeneral: false,
+    });
+
+    await role.destroy();
+
+    return success(res, {
+        message: 'Role deleted successfully and associated users updated to default role',
+    });
+});
+
+module.exports = { getRoles, getRole, createRole, updateRole, deleteRole };

@@ -1,58 +1,55 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/user');
 const RolePermission = require('../models/rolePermission');
+const env = require('../config/env');
+const AppError = require('../utils/AppError');
 
+/**
+ * Authentication middleware.
+ * Verifies the Bearer access token, loads the user with role & permissions,
+ * and rejects blocked or deleted accounts.
+ */
 const verifyToken = async (req, res, next) => {
     try {
         const authHeader = req.headers['authorization'];
-        const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.split(' ')[1] : authHeader && authHeader.split(' ')[1];
+        const token =
+            authHeader && authHeader.startsWith('Bearer ')
+                ? authHeader.slice(7)
+                : null;
 
         if (!token) {
-            return res.status(401).json({
-                status: "failed",
-                message: "Authentication token is required"
-            });
+            throw new AppError('Authentication token is required', 401, { code: 'TOKEN_REQUIRED' });
         }
 
-        const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
+        const decoded = jwt.verify(token, env.ACCESS_TOKEN_SECRET);
 
         const user = await User.findByPk(decoded.id, {
             include: [{
                 association: 'role',
                 include: [{
                     association: 'permissions',
-                    through: RolePermission
-                }]
-            }]
+                    through: RolePermission,
+                }],
+            }],
         });
 
-        if (!user) {
-            return res.status(401).json({
-                status: "failed",
-                message: "User account no longer exists"
-            });
+        if (!user || user.deleted_at) {
+            throw new AppError('User account no longer exists', 401, { code: 'USER_NOT_FOUND' });
         }
 
         if (user.is_blocked) {
-            return res.status(403).json({
-                status: "failed",
-                message: "Your account has been suspended"
-            });
+            throw new AppError('Your account has been suspended', 403, { code: 'ACCOUNT_BLOCKED' });
         }
 
         req.user = user;
-        next();
+        return next();
     } catch (error) {
+        if (error instanceof AppError) return next(error);
+
         if (error.name === 'TokenExpiredError') {
-            return res.status(401).json({
-                status: "failed",
-                message: "Token expired"
-            });
+            return next(new AppError('Token expired', 401, { code: 'TOKEN_EXPIRED' }));
         }
-        return res.status(401).json({
-            status: "failed",
-            message: "Invalid or corrupted token"
-        });
+        return next(new AppError('Invalid or corrupted token', 401, { code: 'TOKEN_INVALID' }));
     }
 };
 

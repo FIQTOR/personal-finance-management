@@ -44,10 +44,16 @@ const UserActivity = sequelize.define('user_activity', {
     defaultValue: true
   }
 }, {
+  tableName: 'user_activities',
   underscored: true,
   timestamps: true,
   createdAt: 'created_at',
-  updatedAt: 'updated_at'
+  updatedAt: 'updated_at',
+  indexes: [
+    { fields: ['user_id'] },
+    { fields: ['activity_type'] },
+    { fields: ['created_at'] }
+  ]
 });
 
 UserActivity.belongsTo(User, {

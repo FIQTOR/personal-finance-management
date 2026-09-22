@@ -1,131 +1,74 @@
-// Import required models
+// Role ↔ permission assignment controller.
 const Role = require('../models/role');
 const Permission = require('../models/permission');
+const AppError = require('../utils/AppError');
+const asyncHandler = require('../utils/asyncHandler');
+const { success } = require('../utils/response');
 
-/**
- * Assign permissions to a role
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- * @returns {Object} JSON response with updated role and its permissions
- * @description Assigns multiple permissions to a role
- */
-const assignPermissionsToRole = async (req, res) => {
-    try {
-        const { role_id } = req.params;  // Changed from roleId
-        const { permission_ids } = req.body;  // Changed from permissionIds
+const roleWithPermissions = (roleId) =>
+    Role.findByPk(roleId, {
+        include: [{ model: Permission, as: 'permissions', through: { attributes: [] } }],
+    });
 
-        // Check if role exists
-        const role = await Role.findByPk(role_id);
-        if (!role) {
-            return res.status(404).json({ status: 'error', message: 'Role not found' });
-        }
+/** Assign permissions to a role. */
+const assignPermissionsToRole = asyncHandler(async (req, res) => {
+    const { roleId } = req.params;
+    const { permission_ids } = req.body;
 
-        // Check if all permissions exist
-        const permissions = await Permission.findAll({
-            where: { id: permission_ids }
-        });
-
-        if (permissions.length !== permission_ids.length) {
-            return res.status(404).json({ status: 'error', message: 'One or more permissions not found' });
-        }
-
-        // Assign permissions to role
-        await role.addPermissions(permission_ids);
-
-        // Fetch updated role with permissions
-        const updatedRole = await Role.findByPk(role_id, {
-            include: [{
-                model: Permission,
-                as: 'permissions',
-                through: { attributes: [] }
-            }]
-        });
-
-        res.status(200).json({
-            status: 'success',
-            message: 'Permissions assigned successfully',
-            data: updatedRole
-        });
-    } catch (error) {
-        res.status(500).json({ status: 'error', message: error.message });
+    if (!Array.isArray(permission_ids)) {
+        throw new AppError('permission_ids must be an array', 400, { code: 'INVALID_INPUT' });
     }
-};
 
-/**
- * Remove permissions from a role
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- * @returns {Object} JSON response with updated role and its permissions
- * @description Removes multiple permissions from a role
- */
-const removePermissionsFromRole = async (req, res) => {
-    try {
-        const { role_id } = req.params;  // Changed from roleId
-        const { permission_ids } = req.body;  // Changed from permissionIds
-
-        // Check if role exists
-        const role = await Role.findByPk(role_id);
-        if (!role) {
-            return res.status(404).json({ status: 'error', message: 'Role not found' });
-        }
-
-        // Remove permissions from role
-        await role.removePermissions(permission_ids);
-
-        // Fetch updated role with remaining permissions
-        const updatedRole = await Role.findByPk(role_id, {
-            include: [{
-                model: Permission,
-                as: 'permissions',
-                through: { attributes: [] }
-            }]
-        });
-
-        res.status(200).json({
-            status: 'success',
-            message: 'Permissions removed successfully',
-            data: updatedRole
-        });
-    } catch (error) {
-        res.status(500).json({ status: 'error', message: error.message });
+    const role = await Role.findByPk(roleId);
+    if (!role) {
+        throw new AppError('Role not found', 404, { code: 'ROLE_NOT_FOUND' });
     }
-};
 
-/**
- * Get all permissions for a role
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- * @returns {Object} JSON response with role's permissions
- * @description Retrieves all permissions associated with a specific role
- */
-const getRolePermissions = async (req, res) => {
-    try {
-        const { role_id } = req.params;
-
-        const role = await Role.findByPk(role_id, {
-            include: [{
-                model: Permission,
-                as: 'permissions',
-                through: { attributes: [] }
-            }]
-        });
-
-        if (!role) {
-            return res.status(404).json({ status: 'error', message: 'Role not found' });
-        }
-
-        res.status(200).json({
-            status: 'success',
-            data: role.permissions
-        });
-    } catch (error) {
-        res.status(500).json({ status: 'error', message: error.message });
+    const permissions = await Permission.findAll({ where: { id: permission_ids } });
+    if (permissions.length !== permission_ids.length) {
+        throw new AppError('One or more permissions not found', 404, { code: 'PERMISSION_NOT_FOUND' });
     }
-};
 
-// Export controller functions
-module.exports = {
-    assignPermissionsToRole,
-    removePermissionsFromRole,
-    getRolePermissions
-};
+    await role.addPermissions(permission_ids);
+
+    return success(res, {
+        message: 'Permissions assigned successfully',
+        data: await roleWithPermissions(roleId),
+    });
+});
+
+/** Remove permissions from a role. */
+const removePermissionsFromRole = asyncHandler(async (req, res) => {
+    const { roleId } = req.params;
+    const { permission_ids } = req.body;
+
+    if (!Array.isArray(permission_ids)) {
+        throw new AppError('permission_ids must be an array', 400, { code: 'INVALID_INPUT' });
+    }
+
+    const role = await Role.findByPk(roleId);
+    if (!role) {
+        throw new AppError('Role not found', 404, { code: 'ROLE_NOT_FOUND' });
+    }
+
+    await role.removePermissions(permission_ids);
+
+    return success(res, {
+        message: 'Permissions removed successfully',
+        data: await roleWithPermissions(roleId),
+    });
+});
+
+/** Get all permissions for a role. */
+const getRolePermissions = asyncHandler(async (req, res) => {
+    const { roleId } = req.params;
+
+    const role = await roleWithPermissions(roleId);
+    if (!role) {
+        throw new AppError('Role not found', 404, { code: 'ROLE_NOT_FOUND' });
+    }
+
+    return success(res, { message: 'Role permissions retrieved successfully', data: role.permissions });
+});
+
+module.exports = { assignPermissionsToRole, removePermissionsFromRole, getRolePermissions };

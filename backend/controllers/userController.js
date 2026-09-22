@@ -1,758 +1,460 @@
-// Import required dependencies
-const bcrypt = require("bcryptjs");
-const User = require("../models/user");
-const Role = require("../models/role");
-const Permission = require("../models/permission");
+// User management controller.
+const { PassThrough } = require('stream');
 const multer = require('multer');
-const { Op } = require("sequelize");
-const RolePermission = require("../models/rolePermission");
-const UserActivity = require("../models/userActivity");
-const { google } = require("googleapis");
+const { google } = require('googleapis');
+const { Op } = require('sequelize');
+const User = require('../models/user');
+const Role = require('../models/role');
+const Permission = require('../models/permission');
+const RolePermission = require('../models/rolePermission');
+const env = require('../config/env');
+const AppError = require('../utils/AppError');
+const asyncHandler = require('../utils/asyncHandler');
+const { success } = require('../utils/response');
+const { hashPassword } = require('../utils/password');
+const activityService = require('../services/activityService');
+
+// --- Google Drive integration (avatar uploads) --------------------------------
 
 const oauth2Client = new google.auth.OAuth2(
-    process.env.GOOGLE_CLIENT_ID,
-    process.env.GOOGLE_CLIENT_SECRET
+    env.GOOGLE_CLIENT_ID,
+    env.GOOGLE_CLIENT_SECRET
 );
+oauth2Client.setCredentials({ refresh_token: env.GOOGLE_CLIENT_REFRESH_TOKEN });
+const drive = google.drive({ version: 'v3', auth: oauth2Client });
 
-oauth2Client.setCredentials({
-    refresh_token: process.env.GOOGLE_CLIENT_REFRESH_TOKEN,
-});
-
-const drive = google.drive({
-    version: "v3",
-    auth: oauth2Client,
-});
-
-// Replace multer storage configuration
 const upload = multer({
     storage: multer.memoryStorage(),
-    limits: {
-        fileSize: 5 * 1024 * 1024, // 5MB limit
-    },
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
     fileFilter: (req, file, cb) => {
-        if (file.mimetype.startsWith('image/')) {
-            cb(null, true);
-        } else {
-            cb(new Error('Only image files are allowed!'));
-        }
-    }
+        if (file.mimetype.startsWith('image/')) return cb(null, true);
+        return cb(new Error('Only image files are allowed!'));
+    },
 });
 
-// Add these helper functions before the controller functions
 const uploadToDrive = async (fileObject) => {
-    try {
-        const bufferStream = new require('stream').PassThrough();
-        bufferStream.end(fileObject.buffer);
+    const bufferStream = new PassThrough();
+    bufferStream.end(fileObject.buffer);
 
-        const timestamp = Date.now();
-        const randomString = Math.random().toString(36).substring(2, 12);
-        const fileExtension = fileObject.originalname.split('.').pop();
-        const randomFileName = `avatar_${timestamp}_${randomString}.${fileExtension}`;
+    const timestamp = Date.now();
+    const randomString = Math.random().toString(36).substring(2, 12);
+    const fileExtension = fileObject.originalname.split('.').pop();
+    const randomFileName = `avatar_${timestamp}_${randomString}.${fileExtension}`;
 
-        const response = await drive.files.create({
-            requestBody: {
-                name: randomFileName,
-                parents: [process.env.GOOGLE_DRIVE_ID_USER],
-                'mimeType': fileObject.mimetype
-            },
-            media: {
-                mimeType: fileObject.mimetype,
-                body: bufferStream
-            },
-            fields: 'id',
-            supportsAllDrives: true,
-        });
+    const response = await drive.files.create({
+        requestBody: {
+            name: randomFileName,
+            parents: [env.GOOGLE_DRIVE_ID_USER],
+            mimeType: fileObject.mimetype,
+        },
+        media: { mimeType: fileObject.mimetype, body: bufferStream },
+        fields: 'id',
+        supportsAllDrives: true,
+    });
 
-        const fileId = response.data.id;
+    const fileId = response.data.id;
+    await drive.permissions.create({
+        fileId,
+        requestBody: { role: 'reader', type: 'anyone' },
+    });
 
-        // Set public permission
-        await drive.permissions.create({
-            fileId: fileId,
-            requestBody: {
-                role: 'reader',
-                type: 'anyone'
-            }
-        });
-
-        return `https://lh3.googleusercontent.com/d/${fileId}`;
-    } catch (error) {
-        console.error('Error uploading to Drive:', error);
-        throw new Error('Failed to upload file to Google Drive');
-    }
+    return `https://lh3.googleusercontent.com/d/${fileId}`;
 };
 
 const deleteFromDrive = async (fileUrl) => {
     try {
-        if (!fileUrl || !fileUrl.includes('/d/')) {
-            console.log('Invalid file URL format:', fileUrl);
-            return;
-        }
-
+        if (!fileUrl || !fileUrl.includes('/d/')) return;
         const fileId = fileUrl.split('/d/')[1];
-
-        // Check if file exists before attempting to delete
         try {
-            await drive.files.get({
-                fileId: fileId,
-                fields: 'id'
-            });
-
-            // If file exists, delete it
-            await drive.files.delete({
-                fileId: fileId
-            });
+            await drive.files.get({ fileId, fields: 'id' });
+            await drive.files.delete({ fileId });
         } catch (err) {
-            // If file not found, just log and continue
-            if (err.code === 404) {
-                console.log(`File ${fileId} already deleted or not found`);
-                return;
-            }
-            throw err; // Re-throw other errors
+            if (err.code === 404) return; // already gone
+            throw err;
         }
     } catch (error) {
+        // eslint-disable-next-line no-console
         console.error('Error in deleteFromDrive:', error.message);
-        // Don't throw error to prevent breaking the main flow
     }
 };
+
+/** Safely remove an avatar that lives in Google Drive. */
+const maybeDeleteAvatar = async (avatarUrl) => {
+    if (avatarUrl && avatarUrl.includes('googleusercontent')) {
+        await deleteFromDrive(avatarUrl);
+    }
+};
+
+// --- Controllers --------------------------------------------------------------
 
 /**
- * Get all users without pagination
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
+ * List users with pagination, search, role filter and sorting.
  */
-const getAllUsers = async (req, res) => {
-    try {
-        const users = await User.findAll({
-            include: [{
-                model: Role,
-                as: 'role',
-                include: [{
-                    model: Permission,
-                    as: 'permissions',
-                    through: { attributes: [] }
-                }]
-            }, {
-                model: User,
-                as: 'updater',
-                attributes: ['id', 'name', 'email', 'avatar_url'],
-                required: false
-            }, {
-                model: User,
-                as: 'creator',
-                attributes: ['id', 'name', 'email', 'avatar_url'],
-                required: false
-            }],
-            order: [['created_at', 'DESC']],
-            where: {
-                deleted_at: null // Only get non-deleted users
-            }
-        });
+const getUsers = asyncHandler(async (req, res) => {
+    const {
+        search,
+        role,
+        orderBy = 'created_at',
+        order = 'DESC',
+        limit = 10,
+        page = 1,
+    } = req.query;
 
-        res.status(200).json({
-            status: "success",
-            data: users
-        });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({
-            status: 'failed',
-            message: 'Internal server error'
-        });
+    const orderDirection = String(order).toUpperCase();
+    if (!['ASC', 'DESC'].includes(orderDirection)) {
+        throw new AppError("Order must be either 'ASC' or 'DESC'", 400, { code: 'INVALID_ORDER' });
     }
-};
 
+    const offset = (Number(page) - 1) * Number(limit);
+
+    const whereClause = search
+        ? {
+            [Op.or]: [
+                { name: { [Op.like]: `%${search}%` } },
+                { email: { [Op.like]: `%${search}%` } },
+            ],
+        }
+        : {};
+
+    const includeClause = [
+        {
+            model: Role,
+            as: 'role',
+            ...(role && { where: { name: role } }),
+            include: [{ model: Permission, as: 'permissions', through: { attributes: [] } }],
+        },
+        {
+            model: User,
+            as: 'updater',
+            attributes: ['id', 'name', 'email', 'avatar_url'],
+            required: false,
+        },
+        {
+            model: User,
+            as: 'creator',
+            attributes: ['id', 'name', 'email', 'avatar_url'],
+            required: false,
+        },
+    ];
+
+    const total = await User.count({ where: whereClause, include: role ? includeClause : undefined });
+
+    const users = await User.findAll({
+        where: whereClause,
+        include: includeClause,
+        order: [[orderBy, orderDirection]],
+        limit: Number(limit),
+        offset,
+    });
+
+    return success(res, {
+        message: 'Users retrieved successfully',
+        data: { users, total },
+    });
+});
 
 /**
- * Retrieve all users from the database
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
+ * Get a single user by id (with role & permissions).
  */
-const getUsers = async (req, res) => {
-    try {
-        const {
-            search,
-            role,
-            orderBy = 'created_at',
-            order = 'DESC',
-            limit = 10,
-            page = 1
-        } = req.query;
+const getUser = asyncHandler(async (req, res) => {
+    const { id } = req.params;
 
-        // Validate order direction
-        if (!['ASC', 'DESC'].includes(order.toUpperCase())) {
-            return res.status(400).json({
-                status: "failed",
-                message: "Order must be either 'ASC' or 'DESC'"
-            });
-        }
+    const user = await User.findOne({
+        where: { id },
+        include: {
+            association: 'role',
+            include: [{ association: 'permissions', through: RolePermission }],
+        },
+    });
 
-        // Calculate offset for pagination
-        const offset = (Number(page) - 1) * Number(limit);
-
-        // Build where clause for search
-        let whereClause = {};
-
-        if (search) {
-            whereClause = {
-                [Op.or]: [
-                    { name: { [Op.like]: `%${search}%` } },
-                    { email: { [Op.like]: `%${search}%` } },
-                ]
-            };
-        }
-
-        const includeClause = [
-            {
-                model: Role,
-                as: 'role',
-                ...(role && { where: { name: role } }),
-                include: [{
-                    model: Permission,
-                    as: 'permissions',
-                    through: { attributes: [] }
-                }]
-            },
-            {
-                model: User,
-                as: 'updater',
-                attributes: ['id', 'name', 'email', 'avatar_url'],
-                required: false
-            }, {
-                model: User,
-                as: 'creator',
-                attributes: ['id', 'name', 'email', 'avatar_url'],
-                required: false
-            },];
-
-        // Get total count for pagination
-        const total = await User.count({
-            where: whereClause,
-            include: role ? includeClause : undefined
-        });
-
-        // Find users with pagination and eager load associations
-        const users = await User.findAll({
-            where: whereClause,
-            include: includeClause,
-            order: [[orderBy, order.toUpperCase()]],
-            limit: Number(limit),
-            offset: offset
-        });
-
-        // Send response
-        res.status(200).json({
-            status: "success",
-            data: {
-                users,
-                total
-            }
-        });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ status: 'failed', message: 'Internal server error' });
+    if (!user) {
+        throw new AppError('User not found', 404, { code: 'USER_NOT_FOUND' });
     }
-};
+
+    return success(res, { message: 'User retrieved successfully', data: { user } });
+});
 
 /**
- * Retrieve a single user by ID with associated role and permissions
- * @param {Object} req - Express request object containing user ID
- * @param {Object} res - Express response object
+ * Create a new user (admin action).
  */
-const getUser = async (req, res) => {
-    try {
-        const { id } = req.params;
-        // Find user by ID
-        const user = await User.findOne({
-            where: { id },
-            include: {
-                association: 'role',
-                include: [{
-                    association: 'permissions',
-                    through: RolePermission
-                }]
-            }
-        });
+const createUser = asyncHandler(async (req, res) => {
+    const { name, email, password, isBlocked, isVerified, roleId } = req.body;
 
-        if (!user) {
-            return res.status(404).json({
-                status: "failed",
-                message: 'User not found'
-            });
-        }
-        // Format the response
-        const formattedUser = {
-            ...user.toJSON(),
-        };
-
-        res.status(200).json({
-            status: "success",
-            user: formattedUser
-        });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ status: 'failed', message: 'Internal server error' });
+    if (!name || !email || !password || roleId === undefined) {
+        throw new AppError(
+            'Name, email, password and role id are required',
+            400,
+            { code: 'MISSING_FIELDS' }
+        );
     }
-};
+
+    const existingUser = await User.findOne({ where: { email } });
+    if (existingUser) {
+        throw new AppError('Email already exists', 400, { code: 'EMAIL_EXISTS' });
+    }
+
+    const role = await Role.findByPk(roleId);
+    if (!role) {
+        throw new AppError('Role not found', 400, { code: 'ROLE_NOT_FOUND' });
+    }
+
+    const user = await User.create({
+        name,
+        email,
+        role_id: role.id,
+        is_verified: isVerified === true || isVerified === 'true',
+        password: await hashPassword(password),
+        created_by: req.user.id,
+    });
+
+    if (isBlocked === true || isBlocked === 'true') {
+        await user.update({ is_blocked: true, blocked_at: new Date() });
+    }
+
+    if (req.file) {
+        try {
+            await user.update({ avatar_url: await uploadToDrive(req.file) });
+        } catch (error) {
+            // eslint-disable-next-line no-console
+            console.error('Error uploading avatar:', error);
+        }
+    }
+
+    await activityService.logActivity(req, {
+        userId: req.user.id,
+        activityType: 'created_user',
+        description: `Created user: ${user.name}`,
+        isGeneral: false,
+    });
+
+    return success(res, { statusCode: 201, message: 'Successfully created new user', data: user });
+});
 
 /**
- * Create a new user with encrypted password and assigned role
- * @param {Object} req - Express request object containing user details
- * @param {Object} res - Express response object
+ * Update a user (admin action).
  */
-const createUser = async (req, res) => {
+const updateUser = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { name, email, roleId, is_blocked, is_verified } = req.body;
 
-    try {
-
-        const { name, email, password, isBlocked, isVerified, roleId } = req.body;
-        // Validate required fields
-        if (!name || !email || !password || !isBlocked || !isVerified || !roleId) {
-            return res.status(400).json({ status: "failed", message: "Name, email, password, is blocked, is verified, and role id are required" });
-        }
-
-        // Check if email already exists
-        const existingUser = await User.findOne({ where: { email } });
-        if (existingUser) {
-            return res.status(400).json({
-                status: "failed",
-                message: "Email already exists"
-            });
-        }
-
-        // Hash the password
-        const salt = await bcrypt.genSalt(10);
-        const hash = await bcrypt.hash(password, salt);
-
-        // Find and assign role to user
-        const role = await Role.findByPk(roleId);
-
-        if (!role) {
-            return res.status(400).json({ status: "failed", message: 'Role not found' });
-        }
-
-        // Create new user with hashed password
-        const user = await User.create({ name, email, role_id: role.id, is_verified: isVerified, password: hash, created_by: req.user.id });
-
-        if (isBlocked === true) {
-            await user.update({ is_blocked: true, blocked_at: new Date() });
-        }
-
-        if (req.file) {
-            try {
-                const avatarUrl = await uploadToDrive(req.file);
-                await user.update({ avatar_url: avatarUrl });
-            } catch (error) {
-                console.error('Error uploading avatar:', error);
-            }
-        }
-
-        // Log role creation activity
-        await UserActivity.create({
-            user_id: req.user.id,
-            activity_type: 'created_user',
-            status: 'info',
-            description: `Created user: ${user.name}`,
-            ip_address: req.ip,
-            is_general: false,
-            user_agent: req.headers['user-agent']
-        });
-
-        res.status(201).json({
-            status: "success",
-            message: "Successfully created new user",
-            data: user,
-        });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ status: 'failed', message: 'Internal server error' });
+    if (!name || !email || roleId === undefined) {
+        throw new AppError('Name, email and role are required', 400, { code: 'MISSING_FIELDS' });
     }
-};
+
+    const user = await User.findByPk(id);
+    if (!user) {
+        throw new AppError('User not found', 404, { code: 'USER_NOT_FOUND' });
+    }
+
+    const role = await Role.findByPk(roleId);
+    if (!role) {
+        throw new AppError('Role not found', 400, { code: 'ROLE_NOT_FOUND' });
+    }
+
+    const toBool = (v) => v === true || v === 'true';
+
+    const updateData = {
+        name,
+        email,
+        role_id: role.id,
+        is_verified: toBool(is_verified),
+        updated_by: req.user.id,
+    };
+
+    if (user.is_blocked !== toBool(is_blocked)) {
+        updateData.is_blocked = toBool(is_blocked);
+        updateData.blocked_at = toBool(is_blocked) ? new Date() : null;
+    }
+
+    if (req.file) {
+        try {
+            await maybeDeleteAvatar(user.avatar_url);
+            updateData.avatar_url = await uploadToDrive(req.file);
+        } catch (error) {
+            // eslint-disable-next-line no-console
+            console.error('Error updating avatar:', error);
+        }
+    }
+
+    await user.update(updateData);
+
+    await activityService.logActivity(req, {
+        userId: req.user.id,
+        activityType: 'updated_user',
+        description: `Updated user: ${user.name}`,
+        isGeneral: false,
+    });
+
+    return success(res, { message: 'Successfully updated user', data: user });
+});
 
 /**
- * Update user information including avatar and role
- * @param {Object} req - Express request object containing updated user details
- * @param {Object} res - Express response object
+ * Delete a single user.
  */
-const updateUser = async (req, res) => {
-    try {
-        const { id } = req.params;
-        const { name, email, roleId, is_blocked, is_verified } = req.body;
+const deleteUser = asyncHandler(async (req, res) => {
+    const { id } = req.params;
 
-        // Validate required fields
-        if (!name || !email || !roleId || !is_blocked || !is_verified) {
-            return res.status(400).json({ status: "failed", message: "Name, email, is blocked, and is verified, and Role are required" });
-        }
-
-        // Check if user exists
-        const user = await User.findByPk(id);
-        if (!user) {
-            return res.status(404).json({ status: "failed", message: 'User not found' });
-        }
-
-        // Find role by ID
-        const role = await Role.findByPk(roleId);
-        if (!role) {
-            return res.status(400).json({ message: 'Role not found' });
-        }
-
-        const userUpdater = await User.findByPk(req.user.id);
-
-        // Create update object
-        const updateData = {
-            name,
-            email,
-            role_id: role.id,
-            is_verified: is_verified === 'true',
-            updated_by: userUpdater.id
-        };
-
-        // Only update blocked status if it's different from current status
-        if (user.is_blocked !== (is_blocked === 'true')) {
-            updateData.is_blocked = is_blocked === 'true';
-            updateData.blocked_at = is_blocked === 'true' ? new Date() : null;
-        }
-
-        if (req.file) {
-            try {
-                // Delete old avatar if exists
-                if (user.avatar_url) {
-                    if (user.avatar_url.includes('googleusercontent')) {
-                        await deleteFromDrive(user.avatar_url);
-                    }
-                }
-                const avatarUrl = await uploadToDrive(req.file);
-                updateData.avatar_url = avatarUrl;
-            } catch (error) {
-                console.error('Error updating avatar:', error);
-            }
-        }
-
-        await user.update(updateData);
-
-        // Log activity
-        await UserActivity.create({
-            user_id: req.user.id,
-            activity_type: 'updated_user',
-            status: 'info',
-            description: `Updated user: ${user.name}`,
-            ip_address: req.ip,
-            is_general: false,
-            user_agent: req.headers['user-agent']
-        });
-
-        res.status(200).json({
-            status: "success",
-            message: "Successfully updated user",
-            data: user,
-        });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ status: 'failed', message: 'Internal server error' });
+    const user = await User.findByPk(id);
+    if (!user) {
+        throw new AppError('User not found', 404, { code: 'USER_NOT_FOUND' });
     }
-};
+
+    await activityService.logActivity(req, {
+        userId: req.user.id,
+        activityType: 'deleted_user',
+        description: `Deleted user: ${user.name}`,
+        isGeneral: false,
+    });
+
+    await maybeDeleteAvatar(user.avatar_url);
+    await user.destroy();
+
+    return success(res, { message: 'Successfully deleted user' });
+});
 
 /**
- * Delete a user from the database
- * @param {Object} req - Express request object containing user ID
- * @param {Object} res - Express response object
+ * Bulk delete users.
  */
-const deleteUser = async (req, res) => {
+const bulkDeleteUsers = asyncHandler(async (req, res) => {
+    const { userIds } = req.body;
 
-
-    try {
-
-        const { id } = req.params;
-        const user = await User.findByPk(id);
-        if (!user) {
-            return res.status(404).json({ status: "failed", message: 'User not found' });
-        }
-        // Log role creation activity
-        await UserActivity.create({
-            user_id: req.user.id,
-            activity_type: 'deleted_user',
-            status: 'info',
-            description: `Deleted user: ${user.name}`,
-            ip_address: req.ip,
-            is_general: false,
-            user_agent: req.headers['user-agent']
-        });
-
-        if (user.avatar_url && user.avatar_url.includes('googleusercontent')) {
-            try {
-                await deleteFromDrive(user.avatar_url);
-            } catch (err) {
-                console.error('Error deleting avatar:', err);
-            }
-        }
-
-        await user.destroy();
-        res.status(200).json({
-            status: "success",
-            message: "Successfully deleted user",
-        });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ status: 'failed', message: 'Internal server error' });
+    if (!Array.isArray(userIds) || userIds.length === 0) {
+        throw new AppError('User IDs array is required and cannot be empty', 400, { code: 'MISSING_FIELDS' });
     }
-};
+
+    if (userIds.includes(1)) {
+        throw new AppError('Cannot delete the primary admin user (ID: 1)', 400, { code: 'PROTECTED_USER' });
+    }
+
+    const users = await User.findAll({ where: { id: userIds } });
+    if (users.length === 0) {
+        throw new AppError('No users found with the provided IDs', 404, { code: 'USER_NOT_FOUND' });
+    }
+
+    for (const user of users) {
+        await maybeDeleteAvatar(user.avatar_url);
+    }
+
+    await activityService.logActivity(req, {
+        userId: req.user.id,
+        activityType: 'bulk_deleted_users',
+        description: `Bulk deleted ${users.length} users: ${users.map((u) => u.name).join(', ')}`,
+        isGeneral: false,
+    });
+
+    await User.destroy({ where: { id: userIds } });
+
+    return success(res, {
+        message: `Successfully deleted ${users.length} users`,
+        data: { deletedCount: users.length },
+    });
+});
 
 /**
- * Delete multiple users from the database
- * @param {Object} req - Express request object containing array of user IDs
- * @param {Object} res - Express response object
+ * Update the authenticated user's own profile (name).
  */
-const bulkDeleteUsers = async (req, res) => {
-    try {
-        const { userIds } = req.body;
-
-        if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
-            return res.status(400).json({
-                status: "failed",
-                message: "User IDs array is required and cannot be empty"
-            });
-        }
-
-        // Prevent deletion of user ID 1 (admin/superuser)
-        if (userIds.includes(1)) {
-            return res.status(400).json({
-                status: "failed",
-                message: "Cannot delete the primary admin user (ID: 1)"
-            });
-        }
-
-        // Find users to delete
-        const users = await User.findAll({
-            where: {
-                id: userIds
-            }
-        });
-
-        if (users.length === 0) {
-            return res.status(404).json({
-                status: "failed",
-                message: "No users found with the provided IDs"
-            });
-        }
-
-        // Delete avatar files from Google Drive
-        for (const user of users) {
-            if (user.avatar_url && user.avatar_url.includes('googleusercontent')) {
-                try {
-                    await deleteFromDrive(user.avatar_url);
-                } catch (err) {
-                    console.error('Error deleting avatar for user', user.id, ':', err);
-                }
-            }
-        }
-
-        // Log bulk delete activity
-        await UserActivity.create({
-            user_id: req.user.id,
-            activity_type: 'bulk_deleted_users',
-            status: 'info',
-            description: `Bulk deleted ${users.length} users: ${users.map(u => u.name).join(', ')}`,
-            ip_address: req.ip,
-            is_general: false,
-            user_agent: req.headers['user-agent']
-        });
-
-        // Delete users
-        await User.destroy({
-            where: {
-                id: userIds
-            }
-        });
-
-        res.status(200).json({
-            status: "success",
-            message: `Successfully deleted ${users.length} users`,
-            deletedCount: users.length
-        });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ status: 'failed', message: 'Internal server error' });
+const updateProfile = asyncHandler(async (req, res) => {
+    const { name } = req.body;
+    if (!name) {
+        throw new AppError('Name is required', 400, { code: 'MISSING_FIELDS' });
     }
-};
+
+    const user = await User.findByPk(req.user.id);
+    if (!user) {
+        throw new AppError('User not found', 404, { code: 'USER_NOT_FOUND' });
+    }
+
+    const existingUser = await User.findOne({
+        where: { name, id: { [Op.ne]: user.id } },
+    });
+    if (existingUser) {
+        throw new AppError('Username already exists', 400, { code: 'USERNAME_EXISTS' });
+    }
+
+    await user.update({ name });
+
+    await activityService.logActivity(req, {
+        userId: user.id,
+        activityType: 'profile_update',
+        description: 'Updated profile name',
+    });
+
+    return success(res, {
+        message: 'Successfully updated profile',
+        data: { user: { name: user.name } },
+    });
+});
 
 /**
- * Update user's name and avatar
- * @param {Object} req - Express request object containing updated user details
- * @param {Object} res - Express response object
+ * Update the authenticated user's avatar.
  */
-const updateProfile = async (req, res) => {
-
-
-    try {
-        const { name } = req.body;
-
-        // Validate required field
-        if (!name) {
-            return res.status(400).json({ status: "failed", message: "Name is required" });
-        }
-
-
-        const user = await User.findByPk(req.user.id);
-
-        if (!user) {
-            return res.status(404).json({ status: "failed", message: 'User not found' });
-        }
-
-        // Check if name already exists for other users
-        const existingUser = await User.findOne({
-            where: {
-                name: name,
-                id: { [Op.ne]: user.id } // Exclude current user
-            }
-        });
-
-        if (existingUser) {
-            return res.status(400).json({
-                status: "failed",
-                message: 'Username already exists'
-            });
-        }
-
-        await user.update({ name });
-
-        // Log activity for profile update without avatar
-        await UserActivity.create({
-            user_id: user.id,
-            activity_type: 'profile_update',
-            status: 'info',
-            description: 'Updated profile name',
-            ip_address: req.ip,
-            user_agent: req.headers['user-agent']
-        });
-
-        res.status(200).json({
-            status: "success",
-            message: "Successfully updated profile",
-            user: {
-                name: user.name,
-            },
-        });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ status: 'failed', message: 'Internal server error' });
+const updateProfileAvatar = asyncHandler(async (req, res) => {
+    if (!req.file) {
+        throw new AppError('No avatar file provided', 400, { code: 'MISSING_FILE' });
     }
-};
 
-const updateProfileAvatar = async (req, res) => {
-    try {
-        if (!req.file) {
-            return res.status(400).json({
-                status: "failed",
-                message: "No avatar file provided"
-            });
-        }
-
-        const user = await User.findByPk(req.user.id);
-
-        if (!user) {
-            return res.status(404).json({ status: "failed", message: 'User not found' });
-        }
-
-        // Delete old avatar if exists
-        if (user.avatar_url) {
-            if (user.avatar_url.includes('googleusercontent')) {
-                await deleteFromDrive(user.avatar_url);
-            }
-        }
-
-        const avatarUrl = await uploadToDrive(req.file);
-
-        await user.update({ avatar_url: avatarUrl });
-
-        // Log activity for profile update with avatar
-        await UserActivity.create({
-            user_id: user.id,
-            activity_type: 'profile_update',
-            description: `Updated profile avatar`,
-            ip_address: req.ip,
-            user_agent: req.headers['user-agent']
-        });
-
-
-        res.status(200).json({
-            status: "success",
-            message: "Successfully updated profile avatar",
-            user: {
-                avatar_url: user.avatar_url
-            },
-        });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ status: 'failed', message: 'Internal server error' });
+    const user = await User.findByPk(req.user.id);
+    if (!user) {
+        throw new AppError('User not found', 404, { code: 'USER_NOT_FOUND' });
     }
-}
 
-const resetUserPassword = async (req, res) => {
+    await maybeDeleteAvatar(user.avatar_url);
+    const avatarUrl = await uploadToDrive(req.file);
+    await user.update({ avatar_url: avatarUrl });
 
+    await activityService.logActivity(req, {
+        userId: user.id,
+        activityType: 'profile_update',
+        description: 'Updated profile avatar',
+    });
 
-    try {
+    return success(res, {
+        message: 'Successfully updated profile avatar',
+        data: { user: { avatar_url: user.avatar_url } },
+    });
+});
 
-        const { id } = req.params;
-        const { password } = req.body;
+/**
+ * Reset another user's password (admin action).
+ */
+const resetUserPassword = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { password } = req.body;
 
-        if (!password) {
-            return res.status(400).json({
-                status: "failed",
-                message: "Password is required"
-            });
-        }
-
-        const user = await User.findByPk(id);
-        if (!user) {
-            return res.status(404).json({
-                status: "failed",
-                message: 'User not found'
-            });
-        }
-
-        // Hash the new password
-        const salt = await bcrypt.genSalt(10);
-        const hash = await bcrypt.hash(password, salt);
-
-        await user.update({
-            password: hash,
-            last_password_change: new Date(),
-            updated_by: req.user.id
-        });
-
-        // Log activity
-        await UserActivity.create({
-            user_id: req.user.id,
-            activity_type: 'reset_password',
-            status: 'info',
-            description: `Reset password for user: ${user.name}`,
-            ip_address: req.ip,
-            is_general: false,
-            user_agent: req.headers['user-agent']
-        });
-
-        res.status(200).json({
-            status: "success",
-            message: "Successfully reset user password"
-        });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({
-            status: 'failed',
-            message: 'Internal server error'
-        });
+    if (!password) {
+        throw new AppError('Password is required', 400, { code: 'MISSING_FIELDS' });
     }
-};
 
-// Export controller functions and upload middleware
+    const user = await User.findByPk(id);
+    if (!user) {
+        throw new AppError('User not found', 404, { code: 'USER_NOT_FOUND' });
+    }
+
+    await user.update({
+        password: await hashPassword(password),
+        last_password_change: new Date(),
+        updated_by: req.user.id,
+    });
+
+    await activityService.logActivity(req, {
+        userId: req.user.id,
+        activityType: 'reset_password',
+        description: `Reset password for user: ${user.name}`,
+        isGeneral: false,
+    });
+
+    return success(res, { message: 'Successfully reset user password' });
+});
+
 module.exports = {
-    createUser,
+    upload,
     getUsers,
     getUser,
+    createUser,
     updateUser,
-    updateProfile,
-    updateProfileAvatar,
     deleteUser,
     bulkDeleteUsers,
+    updateProfile,
+    updateProfileAvatar,
     resetUserPassword,
-    getAllUsers,
-    upload
 };
