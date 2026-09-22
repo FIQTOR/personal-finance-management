@@ -2,7 +2,6 @@
 
 import { TbUser, TbMail, TbTrash, TbPencil, TbX, TbShieldCheck, TbLock, TbActivity, TbCheck, TbArrowLeft, TbUpload, TbKey } from 'react-icons/tb'
 import { useCallback, useEffect, useState } from 'react'
-import LoadingPage from '@/components/LoadingPage'
 import Notification from '@/components/PanelNotification';
 import AppConfig from '@/config/AppConfig'
 import { useRef } from 'react'
@@ -138,7 +137,32 @@ export default function UserEditPage() {
         getUser();
     }, [getUser]);
 
-    if (!user_) return <LoadingPage />
+    if (!user_) return (
+        <div className="p-4 sm:p-6 md:p-8 min-h-screen animate-pulse">
+            <div className="max-w-6xl mx-auto">
+                <div className="h-8 w-64 rounded-lg bg-neutral-200 dark:bg-neutral-800 mb-6 sm:mb-8" />
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="md:col-span-1">
+                        <div className="backdrop-blur-xl bg-white/70 dark:bg-neutral-800/70 p-6 rounded-2xl shadow-lg border border-white/50 dark:border-neutral-700/50 space-y-4">
+                            <div className="aspect-square w-full max-w-50 md:max-w-none mx-auto rounded-full bg-neutral-200 dark:bg-neutral-800" />
+                            <div className="h-10 w-full rounded-xl bg-neutral-200 dark:bg-neutral-800" />
+                        </div>
+                    </div>
+                    <div className="md:col-span-2 space-y-4">
+                        <div className="backdrop-blur-xl bg-white/70 dark:bg-neutral-800/70 p-6 rounded-2xl shadow-lg border border-white/50 dark:border-neutral-700/50 space-y-4">
+                            {Array.from({ length: 4 }).map((_, i) => (
+                                <div key={i} className="space-y-2">
+                                    <div className="h-4 w-28 rounded bg-neutral-200 dark:bg-neutral-800" />
+                                    <div className="h-12 w-full rounded-xl bg-neutral-200 dark:bg-neutral-800" />
+                                </div>
+                            ))}
+                            <div className="h-12 w-40 rounded-xl bg-neutral-200 dark:bg-neutral-800" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    )
 
     // Add handleSubmit function
     // In the handleSubmit function, add is_blocked to formData

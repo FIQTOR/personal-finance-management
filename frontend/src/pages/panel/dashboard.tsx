@@ -12,7 +12,6 @@ import {
     ArcElement
 } from 'chart.js';
 import { Line, Doughnut } from 'react-chartjs-2';
-import Loading from '@/components/Loading';
 import AnimatedNumber from '@/components/AnimatedNumber';
 import { TbRefresh, TbDownload, TbChartBar, TbWallet, TbArrowUpRight, TbArrowDownRight, TbChartPie, TbTarget, TbActivity, TbUsers } from 'react-icons/tb';
 import { useAppSelector } from '@/store/hooks';
@@ -107,8 +106,52 @@ export default function Dashboard() {
 
     if (loading || !analytics) {
         return (
-            <div className='w-full h-screen flex justify-center items-center'>
-                <Loading />
+            <div className="p-6 min-h-screen space-y-6 animate-pulse">
+                {/* Header */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-neutral-900/80 p-6 rounded-3xl border border-gray-100 dark:border-neutral-800/80 shadow-xs">
+                    <div className="space-y-2">
+                        <div className="h-7 w-48 rounded-lg bg-gray-200 dark:bg-neutral-800" />
+                        <div className="h-4 w-72 max-w-full rounded bg-gray-200 dark:bg-neutral-800" />
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <div className="h-10 w-28 rounded-xl bg-gray-200 dark:bg-neutral-800" />
+                        <div className="h-10 w-28 rounded-xl bg-gray-200 dark:bg-neutral-800" />
+                    </div>
+                </div>
+
+                {/* Welcome Banner */}
+                <div className="p-6 rounded-3xl bg-emerald-500/5 border border-gray-100 dark:border-neutral-800/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div className="space-y-2">
+                        <div className="h-6 w-56 rounded bg-gray-200 dark:bg-neutral-800" />
+                        <div className="h-4 w-64 max-w-full rounded bg-gray-200 dark:bg-neutral-800" />
+                    </div>
+                    <div className="h-8 w-28 rounded-full bg-gray-200 dark:bg-neutral-800" />
+                </div>
+
+                {/* Metrics Cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                        <div key={i} className="bg-white dark:bg-neutral-900/80 p-5 rounded-2xl border border-gray-100 dark:border-neutral-800/80 space-y-3">
+                            <div className="flex items-center justify-between">
+                                <div className="h-3 w-20 rounded bg-gray-200 dark:bg-neutral-800" />
+                                <div className="w-8 h-8 rounded-xl bg-gray-200 dark:bg-neutral-800" />
+                            </div>
+                            <div className="h-6 w-24 rounded bg-gray-200 dark:bg-neutral-800" />
+                        </div>
+                    ))}
+                </div>
+
+                {/* Charts */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div className="lg:col-span-2 bg-white dark:bg-neutral-900/80 p-6 rounded-3xl border border-gray-100 dark:border-neutral-800/80 space-y-4">
+                        <div className="h-5 w-40 rounded bg-gray-200 dark:bg-neutral-800" />
+                        <div className="h-64 w-full rounded-2xl bg-gray-200 dark:bg-neutral-800" />
+                    </div>
+                    <div className="bg-white dark:bg-neutral-900/80 p-6 rounded-3xl border border-gray-100 dark:border-neutral-800/80 space-y-4">
+                        <div className="h-5 w-32 rounded bg-gray-200 dark:bg-neutral-800" />
+                        <div className="h-64 w-full rounded-2xl bg-gray-200 dark:bg-neutral-800" />
+                    </div>
+                </div>
             </div>
         );
     }
