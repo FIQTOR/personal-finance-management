@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { TbCheck, TbX, TbAlertTriangle, TbInfoCircle } from 'react-icons/tb';
-import { useNotification } from '@/context/NotificationContext';
+import { useNotification } from '@/context/useNotification';
 
 const NotificationItem = ({ id, message, type }: { id: string; message: string; type: string }) => {
     const { removeNotification } = useNotification();

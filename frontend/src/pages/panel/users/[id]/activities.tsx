@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import LoadingPage from '@/components/LoadingPage';
 import { TbActivity, TbCalendarTime, TbDeviceLaptop, TbWorld } from 'react-icons/tb';
 import AppConfig from '@/config/AppConfig';
 import NotFound from '@/components/NotFound';
-import axiosJWT from '@/utils/axiosJWT';
+import apiClient from '@/services/apiClient';
 import { useParams } from 'react-router-dom';
 
 interface Activity {
@@ -16,10 +16,19 @@ interface Activity {
     created_at: string;
 }
 
+interface ActivityUser {
+    id: number;
+    name: string;
+    username?: string;
+    email: string;
+    avatar_url?: string | null;
+    role?: { name?: string } | null;
+}
+
 const MyActivity = () => {
     const { id } = useParams()
     const [activities, setActivities] = useState<Activity[]>([]);
-    const [user, setUser] = useState<any>(null)
+    const [user, setUser] = useState<ActivityUser | null>(null)
     const [isLoading, setLoading] = useState(true);
     const [pagination, setPagination] = useState({
         total: 0,
@@ -31,24 +40,17 @@ const MyActivity = () => {
         end_date: ''
     });
 
-    useEffect(() => {
-        document.title = `User Activities ${AppConfig.exTitle}`
-        getUser()
-        fetchActivities();
-    }, [pagination.page, dateRange]);
-
-
-    const getUser = async () => {
+    const getUser = useCallback(async () => {
         try {
-            const res = await axiosJWT.get(`${AppConfig.baseApiUrl}/users/${id}`);
+            const res = await apiClient.get(`/users/${id}`);
 
-            setUser(res.data.user);
+            setUser(res.data.data.user);
         } catch (error) {
-            console.log(error);
+            console.error(error);
         }
-    }
+    }, [id])
 
-    const fetchActivities = async () => {
+    const fetchActivities = useCallback(async () => {
         try {
             const params = new URLSearchParams({
                 page: pagination.page.toString(),
@@ -57,22 +59,27 @@ const MyActivity = () => {
                 ...(dateRange.end_date && { end_date: dateRange.end_date })
             });
 
-            const response = await axiosJWT.get(
-                `${AppConfig.baseApiUrl}/users/${id}/activities?${params}`
+            const response = await apiClient.get(`/users/${id}/activities?${params}`
             );
 
-            setActivities(response.data.data);
+            setActivities(response.data.data.activities);
             setPagination({
-                total: response.data.pagination.total,
-                page: response.data.pagination.page,
-                pages: response.data.pagination.pages
+                total: response.data.data.pagination.total,
+                page: response.data.data.pagination.page,
+                pages: response.data.data.pagination.pages
             });
         } catch (error) {
             console.error('Failed to fetch activities:', error);
         } finally {
             setLoading(false);
         }
-    };
+    }, [id, pagination.page, dateRange]);
+
+    useEffect(() => {
+        document.title = `User Activities ${AppConfig.exTitle}`
+        getUser()
+        fetchActivities();
+    }, [getUser, fetchActivities]);
 
     if (isLoading) return <LoadingPage />;
 
@@ -114,7 +121,7 @@ const MyActivity = () => {
                             <div className="text-center sm:text-left">
                                 <h2 className="text-lg sm:text-xl font-semibold text-neutral-800 dark:text-neutral-200">{user.name}</h2>
                                 <p className="text-gray-600 dark:text-neutral-400 text-sm sm:text-base">{user.email}</p>
-                                <p className="text-xs sm:text-sm text-gray-500 dark:text-neutral-500">Role: {user.role.name}</p>
+                                <p className="text-xs sm:text-sm text-gray-500 dark:text-neutral-500">Role: {user.role?.name}</p>
                             </div>
                         </div>
                     </div>

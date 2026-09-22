@@ -1,11 +1,17 @@
-import axios from 'axios';
 import { useEffect, useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, type Variants } from 'framer-motion';
 import { TbKey, TbLock, TbEye, TbEyeOff, TbArrowLeft, TbCheck, TbAlertCircle } from 'react-icons/tb';
 import AppConfig from '@/config/AppConfig';
+import authApi from '@/services/authApi';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import LoadingPage from '@/components/LoadingPage';
 import NeuralNetworkBackground from '@/components/NeuralNetworkBackground';
+import { getErrorMessage } from '@/utils/error';
+
+interface FeedbackResponse {
+    status: 'success' | 'failed';
+    message: string;
+}
 
 const ResetPassword = () => {
     const [searchParams] = useSearchParams();
@@ -19,12 +25,12 @@ const ResetPassword = () => {
     });
 
     const [tokenValid, setTokenValid] = useState(false)
-    const [response, setResponse] = useState<any>(null)
+    const [response, setResponse] = useState<FeedbackResponse | null>(null)
     const [isLoading, setLoading] = useState(true)
 
     const navigate = useNavigate()
 
-    const handleSubmit = async (e: any) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
 
         if (password !== passwordConfirm) {
@@ -43,10 +49,7 @@ const ResetPassword = () => {
 
         setLoading(true)
         try {
-            const res = await axios.post(`${AppConfig.baseApiUrl}/reset-password`, {
-                token,
-                newPassword: password
-            })
+            const res = await authApi.resetPassword(token as string, password);
 
             const message = res.data.message
             navigate('/signin', {
@@ -55,8 +58,11 @@ const ResetPassword = () => {
                     type: 'success'
                 }
             });
-        } catch (error: any) {
-            setResponse(error.response?.data || { status: 'failed', message: 'Reset failed' })
+        } catch (error: unknown) {
+            setResponse({
+                status: 'failed',
+                message: getErrorMessage(error, 'Reset failed'),
+            })
             setLoading(false)
         }
     }
@@ -66,10 +72,10 @@ const ResetPassword = () => {
 
         const checkToken = async () => {
             try {
-                await axios.get(`${AppConfig.baseApiUrl}/check-reset-password-token?token=${token}`)
+                await authApi.checkResetToken(token as string)
                 setTokenValid(true)
                 setLoading(false)
-            } catch (error) {
+            } catch {
                 setTokenValid(false)
                 setLoading(false)
             }
@@ -78,7 +84,7 @@ const ResetPassword = () => {
         checkToken()
     }, [token])
 
-    const containerVariants: any = {
+    const containerVariants: Variants = {
         hidden: { opacity: 0, y: 20 },
         visible: {
             opacity: 1,
@@ -87,7 +93,7 @@ const ResetPassword = () => {
         }
     };
 
-    const itemVariants: any = {
+    const itemVariants: Variants = {
         hidden: { opacity: 0, y: 10 },
         visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] } }
     };

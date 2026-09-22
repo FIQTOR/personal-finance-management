@@ -2,25 +2,23 @@
 
 import { TbLock, TbArrowLeft, TbCheck } from 'react-icons/tb'
 import { useState } from 'react'
-import Forbidden from '@/components/Forbidden'
-import { useAppSelector } from '@/store/hooks'
-import { selectAuth } from '@/store/authSlice'
-import axiosJWT from '@/utils/axiosJWT'
+import apiClient from '@/services/apiClient';
 import { useNavigate, useParams } from 'react-router-dom';
-import AppConfig from '@/config/AppConfig'
+import { getErrorData } from '@/utils/error';
+
+interface ApiResponse {
+    success: boolean;
+    message: string;
+}
 
 export default function ResetPasswordPage() {
     const navigate = useNavigate();
     const { id } = useParams()
-    const { user } = useAppSelector(selectAuth);
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
-    const [response, setResponse] = useState<any>(null);
+    const [response, setResponse] = useState<ApiResponse | null>(null);
     const [isLoading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-
-    const permissions = new Set(user?.role?.permissions?.map((p: any) => p.name))
-    if (!permissions.has('manage_users')) return <Forbidden />
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -39,22 +37,18 @@ export default function ResetPasswordPage() {
 
         setLoading(true);
         try {
-            const res = await axiosJWT.put(
-                `${AppConfig.baseApiUrl}/users/${id}/reset-password`,
+            const res = await apiClient.put(`/users/${id}/reset-password`,
                 { password }
             );
 
             setResponse(res.data);
-            if (res.data.status === 'success') {
+            if (res.data.success) {
                 setTimeout(() => {
                     navigate(`/panel/users/${id}`);
                 }, 2000);
             }
-        } catch (error: any) {
-            setResponse(error.response?.data || {
-                status: 'error',
-                message: 'Failed to reset password'
-            });
+        } catch (error: unknown) {
+            setResponse(getErrorData<ApiResponse>(error, { success: false, message: 'Failed to reset password' }));
         } finally {
             setLoading(false);
         }
@@ -107,14 +101,14 @@ export default function ResetPasswordPage() {
                             <div className="text-red-500 dark:text-red-400 text-sm">{error}</div>
                         )}
 
-                        {response && response.status && response.message && (
-                            <div className={`text-sm ${response.status === 'success' ? 'text-green-500 dark:text-green-400' : 'text-red-500 dark:text-red-400'}`}>
+                        {response && response.message && (
+                            <div className={`text-sm ${response.success ? 'text-green-500 dark:text-green-400' : 'text-red-500 dark:text-red-400'}`}>
                                 {response.message}
                             </div>
                         )}
 
                         <div className="flex justify-between gap-3 pt-4">
-                            {(!response || (response && response.status !== 'success')) && (
+                            {(!response || (response && !response.success)) && (
                                 <div className="flex gap-4">
                                     <button
                                         type="submit"

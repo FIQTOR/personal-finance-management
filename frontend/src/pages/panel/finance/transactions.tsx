@@ -4,7 +4,7 @@ import { TransactionList } from '@/components/finance/TransactionList';
 import { TransactionForm } from '@/components/finance/TransactionForm';
 import type { Transaction } from '@/types/finance';
 import { TbReceipt } from 'react-icons/tb';
-import { useLanguage } from '@/context/LanguageContext';
+import { useLanguage } from '@/context/useLanguage';
 import { useAppSelector } from '@/store/hooks';
 
 export default function TransactionsPage() {

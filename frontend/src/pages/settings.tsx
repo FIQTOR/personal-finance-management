@@ -3,8 +3,8 @@ import { useEffect, useState } from 'react';
 import AccountMenu from '@/components/settings/account';
 import PermissionsMenu from '@/components/settings/permissions';
 import ActivitiesMenu from '@/components/settings/activities';
-import { useAppDispatch, useAppSelector } from '@/store/hooks';
-import { selectAuth, signOut } from '@/store/authSlice';
+import { useAppDispatch } from '@/store/hooks';
+import { signOut } from '@/store/authSlice';
 import { useNavigate } from 'react-router-dom';
 import AppConfig from '@/config/AppConfig';
 
@@ -22,7 +22,6 @@ const MENU_COMPONENTS = {
 
 export default function Settings() {
     const dispatch = useAppDispatch();
-    const { accessToken } = useAppSelector(selectAuth);
     const navigate = useNavigate();
     const [activeMenu, setActiveMenu] = useState('account');
 
@@ -34,7 +33,7 @@ export default function Settings() {
     }, []);
 
     const handleLogout = () => {
-        dispatch(signOut(accessToken)).then(() => {
+        dispatch(signOut()).then(() => {
             navigate("/signin");
         });
     };

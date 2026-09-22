@@ -1,18 +1,24 @@
-import axios from 'axios';
 import { useEffect, useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, type Variants } from 'framer-motion';
 import { TbMail, TbKeyOff, TbArrowLeft, TbCheck, TbAlertCircle } from 'react-icons/tb';
 import { useAppSelector } from '@/store/hooks';
 import { selectAuth } from '@/store/authSlice';
 import AppConfig from '@/config/AppConfig';
+import authApi from '@/services/authApi';
 import { Link } from 'react-router-dom';
 import LoadingPage from '@/components/LoadingPage';
 import NeuralNetworkBackground from '@/components/NeuralNetworkBackground';
+import { getErrorMessage } from '@/utils/error';
+
+interface FeedbackResponse {
+    status: 'success' | 'failed';
+    message: string;
+}
 
 const ForgotPassword = () => {
     const { user } = useAppSelector(selectAuth)
     const [email, setEmail] = useState('');
-    const [response, setResponse] = useState<any>(null)
+    const [response, setResponse] = useState<FeedbackResponse | null>(null)
     const [countdown, setCountdown] = useState(0)
     const [isLoading, setLoading] = useState(false);
 
@@ -28,7 +34,7 @@ const ForgotPassword = () => {
         return () => clearInterval(interval);
     }, [countdown])
 
-    const handleSubmit = async (e: any) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
 
         if (countdown !== 0) return null;
@@ -43,25 +49,25 @@ const ForgotPassword = () => {
         setLoading(true)
 
         try {
-            const res = await axios.post(`${AppConfig.baseApiUrl}/forgot-password`, { email });
-            setResponse(res.data)
-            setCountdown(res.data.time)
+            const res = await authApi.requestPasswordReset(email);
+            setResponse({ status: 'success', message: res.data.message });
+            setCountdown(res.data.data?.time ?? 0);
             setLoading(false)
-        } catch (error: any) {
-            setResponse(error.response?.data || { status: 'failed', message: 'Request failed.' })
-            if (error.response?.data?.status === 'failed' && error.response?.data?.time) {
-                setCountdown(error.response.data.time)
-            }
+        } catch (error: unknown) {
+            setResponse({
+                status: 'failed',
+                message: getErrorMessage(error, 'Request failed.'),
+            });
             setLoading(false)
         }
     }
 
-    const containerVariants: any = {
+    const containerVariants: Variants = {
         hidden: { opacity: 0, y: 20 },
         visible: { opacity: 1, y: 0, transition: { staggerChildren: 0.1, delayChildren: 0.2 } }
     };
 
-    const itemVariants: any = {
+    const itemVariants: Variants = {
         hidden: { opacity: 0, y: 10 },
         visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] } }
     };

@@ -3,8 +3,7 @@ import { Download, Filter, Plus, Edit2, Trash2, ArrowUpRight, ArrowDownRight } f
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { fetchTransactions, deleteTransaction } from '@/store/financeSlice';
 import type { Transaction, TransactionFilter } from '@/types/finance';
-import axiosJWT from '@/utils/axiosJWT';
-import AppConfig from '@/config/AppConfig';
+import apiClient from '@/services/apiClient';
 
 interface TransactionListProps {
   onAddClick: () => void;
@@ -49,7 +48,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({ onAddClick, on
       if (filters.start_date) queryParams.append('start_date', filters.start_date);
       if (filters.end_date) queryParams.append('end_date', filters.end_date);
 
-      const response = await axiosJWT.get(`${AppConfig.baseApiUrl}/transactions/export?${queryParams.toString()}`, {
+      const response = await apiClient.get(`/transactions/export?${queryParams.toString()}`, {
         responseType: 'blob',
       });
 

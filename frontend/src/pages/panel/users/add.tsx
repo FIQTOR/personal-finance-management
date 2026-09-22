@@ -2,19 +2,21 @@
 
 import { TbUser, TbMail, TbLock, TbShieldCheck, TbKey, TbCheck, TbX, TbPencil, TbPlus, TbArrowLeft } from 'react-icons/tb'
 import { useState, useEffect, useRef } from 'react'
-import Forbidden from '@/components/Forbidden'
 import AppConfig from '@/config/AppConfig'
 import ReactCrop from 'react-image-crop'
 import type { Crop } from 'react-image-crop'
 import 'react-image-crop/dist/ReactCrop.css'
-import { useAppSelector } from '@/store/hooks'
-import { selectAuth } from '@/store/authSlice'
-import axiosJWT from '@/utils/axiosJWT'
 import { useNavigate } from 'react-router-dom'
+import apiClient from '@/services/apiClient';
+import { getErrorData } from '@/utils/error';
+
+interface ApiResponse {
+    success: boolean;
+    message: string;
+}
 
 export default function AddUserPage() {
     const navigate = useNavigate();
-    const { user } = useAppSelector(selectAuth);
     const [roles, setRoles] = useState<Array<{ id: number; name: string }>>([]);
     const [formData, setFormData] = useState({
         name: '',
@@ -27,21 +29,17 @@ export default function AddUserPage() {
     const [previewImage, setPreviewImage] = useState<string | null>(null);
     const [isLoading, setLoading] = useState(false);
     const [uploadError, setUploadError] = useState<string | null>(null);
-    const [response, setResponse] = useState<any>(null);
+    const [response, setResponse] = useState<ApiResponse | null>(null);
     const [showCropModal, setShowCropModal] = useState(false);
-    const [crop, setCrop] = useState<Crop | any>({
+    const [crop, setCrop] = useState<Crop>({
         unit: '%',
         width: 100,
         height: 100,
         x: 0,
         y: 0,
-        aspect: 1,
     });
     const [tempImage, setTempImage] = useState<string | null>(null);
     const imageRef = useRef<HTMLImageElement | null>(null);
-
-    const permissions = new Set(user?.role?.permissions?.map((p: any) => p.name))
-    if (!permissions.has('manage_users')) return <Forbidden />
 
     const onImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
         const { width, height } = e.currentTarget;
@@ -54,8 +52,7 @@ export default function AddUserPage() {
             width: cropWidth,
             height: cropWidth,
             x: x,
-            y: y,
-            aspect: 1
+            y: y
         });
     };
 
@@ -118,10 +115,10 @@ export default function AddUserPage() {
     };
     const getRoles = async () => {
         try {
-            const resRole = await axiosJWT.get(`${AppConfig.baseApiUrl}/roles`);
-            setRoles(resRole.data.data);
-            if (resRole.data.data.length > 0) {
-                setFormData(prev => ({ ...prev, roleId: resRole.data.data[0].id }));
+            const resRole = await apiClient.get(`/roles`);
+            setRoles(resRole.data.data.roles);
+            if (resRole.data.data.roles.length > 0) {
+                setFormData(prev => ({ ...prev, roleId: resRole.data.data.roles[0].id }));
             }
         } catch (error) {
             console.log(error);
@@ -151,8 +148,7 @@ export default function AddUserPage() {
                 submitData.append('avatar', blob, 'avatar.jpg');
             }
 
-            const res = await axiosJWT.post(
-                `${AppConfig.baseApiUrl}/users`,
+            const res = await apiClient.post(`/users`,
                 submitData,
                 {
                     headers: {
@@ -162,16 +158,13 @@ export default function AddUserPage() {
             );
 
             setResponse(res.data);
-            if (res.data.status === 'success') {
+            if (res.data.success) {
                 setTimeout(() => {
                     navigate('/panel/users');
                 }, 2000);
             }
-        } catch (error: any) {
-            setResponse(error.response?.data || {
-                status: 'error',
-                message: 'Failed to create user'
-            });
+        } catch (error: unknown) {
+            setResponse(getErrorData<ApiResponse>(error, { success: false, message: 'Failed to create user' }));
         } finally {
             setLoading(false);
         }
@@ -235,8 +228,8 @@ export default function AddUserPage() {
                             </div>
 
                             {uploadError && <p className="text-red-400 dark:text-red-400 mt-4 text-center">{uploadError}</p>}
-                            {response && response.status && response.message &&
-                                <p className={`mt-4 text-center ${response.status === 'success' ? 'text-green-400 dark:text-green-400' : 'text-red-400 dark:text-red-400'}`}>
+                            {response && response.message &&
+                                <p className={`mt-4 text-center ${response.success ? 'text-green-400 dark:text-green-400' : 'text-red-400 dark:text-red-400'}`}>
                                     {response.message}
                                 </p>
                             }
@@ -351,7 +344,7 @@ export default function AddUserPage() {
                                         </div>
                                     </div>
                                 </div>
-                                {(!response || (response && response.status !== 'success')) && <div className="flex gap-4">
+                                {(!response || (response && !response.success)) && <div className="flex gap-4">
                                     <button
                                         type="submit"
                                         disabled={isLoading}

@@ -1,7 +1,7 @@
 import FinanceWrapper from '@/components/finance/FinanceWrapper';
 import { FinanceDashboard } from '@/components/finance/FinanceDashboard';
 import { TbLayoutDashboard } from 'react-icons/tb';
-import { useLanguage } from '@/context/LanguageContext';
+import { useLanguage } from '@/context/useLanguage';
 
 export default function OverviewPage() {
   const { t } = useLanguage();

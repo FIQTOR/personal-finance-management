@@ -7,10 +7,6 @@ import { LanguageProvider } from './context/LanguageContext.tsx'
 import { HelmetProvider } from 'react-helmet-async';
 import AuthProviders from './store/Providers.tsx'
 import { NotificationProvider } from './context/NotificationContext.tsx'
-import { injectStoreToFetch } from './utils/fetchJWT.ts'
-import { store } from './store/store.ts'
-
-injectStoreToFetch(store);
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

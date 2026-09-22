@@ -5,8 +5,10 @@ import { useAppDispatch, useAppSelector } from '@/store/hooks'
 import { selectAuth, signOut } from '@/store/authSlice'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import AppConfig from '@/config/AppConfig'
-import { useTheme } from '@/context/ThemeContext'
-import { useLanguage, LANGUAGES, type Language } from '@/context/LanguageContext'
+import { useTheme } from '@/context/useTheme'
+import { useLanguage } from '@/context/useLanguage'
+import { LANGUAGES } from '@/constants/languages'
+import type { Language } from '@/context/LanguageContext'
 
 interface NavLink {
     href: string
@@ -17,7 +19,7 @@ interface NavLink {
 }
 
 const Navbar = () => {
-    const { user, accessToken }: any = useAppSelector(selectAuth)
+    const { user } = useAppSelector(selectAuth)
     const dispatch = useAppDispatch()
     const navigate = useNavigate()
 
@@ -27,10 +29,9 @@ const Navbar = () => {
     const [showProfileMenu, setShowProfileMenu] = useState(false)
     const [showLanguageMenu, setShowLanguageMenu] = useState(false)
     const [isScrolled, setIsScrolled] = useState(false)
-    const [mounted, setMounted] = useState(false)
     const pathName = useLocation().pathname
 
-    const permissions = user?.role?.permissions.map((permission: any) => permission.name)
+    const permissions = user?.role?.permissions?.map((permission) => permission.name)
 
     const navLinks: NavLink[] = [
         { href: '/', label: 'Home', icon: TbWorld },
@@ -53,8 +54,6 @@ const Navbar = () => {
     }, [user, pathName, navigate])
 
     useEffect(() => {
-        setMounted(true)
-
         const handleScroll = () => {
             const scrolled = window.scrollY > 10
             setIsScrolled(scrolled)
@@ -81,7 +80,7 @@ const Navbar = () => {
     }, [showProfileMenu, showLanguageMenu])
 
     const handleLogout = () => {
-        dispatch(signOut(accessToken)).then(() => {
+        dispatch(signOut()).then(() => {
             navigate("/signin");
         });
     };
@@ -96,10 +95,10 @@ const Navbar = () => {
             >
                 <div className="relative">
                     <img
-                        src={user.avatar_url?.startsWith('https://')
-                            ? user.avatar_url
-                            : user.avatar_url
-                                ? `${AppConfig.baseApiUrl?.replace('/api', '')}/${user.avatar_url}`
+                        src={user?.avatar_url?.startsWith('https://')
+                            ? user?.avatar_url
+                            : user?.avatar_url
+                                ? `${AppConfig.baseApiUrl?.replace('/api', '')}/${user?.avatar_url}`
                                 : "/img/default-profile.png"
                         }
                         alt="Profile"
@@ -124,10 +123,10 @@ const Navbar = () => {
                     <div className="px-4 py-3 border-b border-gray-200/50 dark:border-neutral-700/50">
                         <div className="flex items-center gap-3">
                             <img
-                                src={user.avatar_url?.startsWith('https://')
-                                    ? user.avatar_url
-                                    : user.avatar_url
-                                        ? `${AppConfig.baseApiUrl?.replace('/api', '')}/${user.avatar_url}`
+                                src={user?.avatar_url?.startsWith('https://')
+                                    ? user?.avatar_url
+                                    : user?.avatar_url
+                                        ? `${AppConfig.baseApiUrl?.replace('/api', '')}/${user?.avatar_url}`
                                         : "/img/default-profile.png"
                                 }
                                 alt="Profile"
@@ -139,10 +138,10 @@ const Navbar = () => {
                             />
                             <div className="flex-1 min-w-0">
                                 <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                                    {user.name}
+                                    {user?.name}
                                 </p>
                                 <p className="text-xs text-gray-500 dark:text-neutral-400 truncate">
-                                    {user.email}
+                                    {user?.email}
                                 </p>
                             </div>
                         </div>
@@ -272,10 +271,9 @@ const Navbar = () => {
                             </div>
 
                             <div className='flex items-center gap-2 md:gap-3'>
-                                {mounted ? (user ? renderAuthLinks() : renderGuestLinks()) : null}
+                                {user ? renderAuthLinks() : renderGuestLinks()}
 
-                                {mounted && (
-                                    <>
+                                <>
                                         <div className="language-menu relative">
                                             <button
                                                 onClick={() => setShowLanguageMenu(!showLanguageMenu)}
@@ -319,8 +317,7 @@ const Navbar = () => {
                                         >
                                             {theme === 'dark' ? <TbMoon className="w-5 h-5 text-blue-400" /> : <TbSun className="w-5 h-5 text-yellow-500" />}
                                         </button>
-                                    </>
-                                )}
+                                </>
 
                                 <div className="lg:hidden">
                                     <button

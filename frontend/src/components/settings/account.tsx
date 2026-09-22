@@ -3,27 +3,32 @@
 import AppConfig from '@/config/AppConfig'
 import { selectAuth } from '@/store/authSlice'
 import { useAppSelector } from '@/store/hooks'
-import axiosJWT from '@/utils/axiosJWT'
+import apiClient from '@/services/apiClient';
 import React, { useState, useRef, useEffect } from 'react'
 import { TbArrowLeft, TbCheck, TbKey, TbUpload, TbUser, TbCamera } from 'react-icons/tb'
 import ReactCrop, { type Crop } from 'react-image-crop'
 import 'react-image-crop/dist/ReactCrop.css'
 import { Link } from 'react-router-dom'
+import { getErrorMessage } from '@/utils/error'
+
+interface FeedbackResponse {
+    status: 'success' | 'error';
+    message: string;
+}
 
 const AccountMenu = () => {
     const { user } = useAppSelector(selectAuth)
 
     const [previewImage, setPreviewImage] = useState<string | null>(null);
     const [showCropModal, setShowCropModal] = useState(false);
-    const [response, setResponse] = useState<any>(null);
+    const [response, setResponse] = useState<FeedbackResponse | null>(null);
     const [name, setName] = useState('');
-    const [crop, setCrop] = useState<Crop | any>({
+    const [crop, setCrop] = useState<Crop>({
         unit: '%',
         width: 100,
         height: 100,
         x: 0,
         y: 0,
-        aspect: 1,
     });
 
     const [tempImage, setTempImage] = useState<string | null>(null);
@@ -75,8 +80,7 @@ const AccountMenu = () => {
             width: cropSize,
             height: cropSize,
             x: x,
-            y: y,
-            aspect: 1
+            y: y
         });
     };
 
@@ -137,7 +141,7 @@ const AccountMenu = () => {
                 const blob = await response.blob();
                 formData.append('avatar', blob, 'avatar.jpg');
 
-                const res = await axiosJWT.put(`${AppConfig.baseApiUrl}/profile/avatar`,
+                const res = await apiClient.put(`/profile/avatar`,
                     formData,
                     {
                         headers: {
@@ -153,11 +157,11 @@ const AccountMenu = () => {
                 setShowCropModal(false);
                 setTempImage(null);
                 setResponse({ status: 'success', message: 'Profile picture updated successfully!' });
-            } catch (error: any) {
+            } catch (error) {
                 console.error('Error uploading avatar:', error);
                 setResponse({
                     status: 'error',
-                    message: error.response?.data?.message || 'Failed to update profile picture. Please try again.'
+                    message: getErrorMessage(error, 'Failed to update profile picture. Please try again.')
                 });
                 setShowCropModal(false);
                 setTempImage(null);
@@ -167,7 +171,7 @@ const AccountMenu = () => {
 
     const handleUpdateProfile = async () => {
         try {
-            const res = await axiosJWT.put(`${AppConfig.baseApiUrl}/profile`, {
+            const res = await apiClient.put(`/profile`, {
                 name,
             });
 
@@ -176,11 +180,11 @@ const AccountMenu = () => {
             }
 
             setResponse({ status: 'success', message: 'Profile updated successfully!' });
-        } catch (error: any) {
+        } catch (error) {
             console.error('Error updating profile:', error);
             setResponse({
                 status: 'error',
-                message: error.response?.data?.message || 'Failed to update profile. Please try again.'
+                message: getErrorMessage(error, 'Failed to update profile. Please try again.')
             });
         }
     }

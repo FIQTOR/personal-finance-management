@@ -61,8 +61,8 @@ const sidebarItems: SidebarItem[] = [
 ]
 
 export default function Sidebar() {
-    const { user }: any = useAppSelector(selectAuth)
-    const permissions = new Set(user?.role?.permissions?.map((p: any) => p.name))
+    const { user } = useAppSelector(selectAuth)
+    const permissions = new Set(user?.role?.permissions?.map((p) => p.name))
     const location = useLocation()
     const pathname = location.pathname
     const [openDropdown, setOpenDropdown] = useState<string | null>(() => {

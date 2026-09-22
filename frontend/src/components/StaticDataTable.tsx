@@ -3,7 +3,7 @@ import { TbArrowsSort, TbSquareCheck, TbSquare } from 'react-icons/tb'
 import type { ReactNode } from 'react'
 
 // Generic interfaces for any data type
-export interface ColumnConfig<T = any> {
+export interface ColumnConfig<T extends object = object> {
     key: keyof T
     label: string
     sortable?: boolean
@@ -14,13 +14,13 @@ export interface ColumnConfig<T = any> {
     hideOnMobile?: boolean
     hideOnTablet?: boolean
     hideOnDesktop?: boolean
-    render?: (value: any, item: T, index: number) => ReactNode
+    render?(value: T[keyof T], item: T, index: number): ReactNode
     className?: string
     thClassName?: string
     tdClassName?: string
 }
 
-export interface ActionConfig<T = any> {
+export interface ActionConfig<T extends object = object> {
     key: string
     label?: string
     icon: ReactNode
@@ -34,7 +34,7 @@ export interface ActionConfig<T = any> {
     target?: '_blank' | '_self' | '_parent' | '_top'
 }
 
-export interface StaticDataTableProps<T = any> {
+export interface StaticDataTableProps<T extends object = object> {
     data: T[]
     columns: ColumnConfig<T>[]
     actions?: ActionConfig<T>[]
@@ -70,7 +70,7 @@ export interface StaticDataTableProps<T = any> {
     pagination?: boolean
 }
 
-const StaticDataTable = <T extends Record<string, any>>({
+const StaticDataTable = <T extends object = object>({
     data,
     columns,
     actions = [],
@@ -127,11 +127,12 @@ const StaticDataTable = <T extends Record<string, any>>({
 
         if (typeof value === 'object' && value !== null) {
             // Handle nested objects (like role.name, creator.name, etc.)
-            if ('name' in value && typeof value.name === 'string') {
-                return <span>{value.name}</span>
+            const nested = value as Record<string, unknown>
+            if ('name' in nested && typeof nested.name === 'string') {
+                return <span>{nested.name}</span>
             }
-            if ('toString' in value && typeof value.toString === 'function') {
-                return <span>{value.toString()}</span>
+            if ('toString' in nested && typeof nested.toString === 'function') {
+                return <span>{String(nested)}</span>
             }
         }
 
@@ -148,7 +149,7 @@ const StaticDataTable = <T extends Record<string, any>>({
             }
         }
 
-        return <span>{value}</span>
+        return <span>{String(value)}</span>
     }
 
     const getHeaderCellClasses = (column: ColumnConfig<T>) => {

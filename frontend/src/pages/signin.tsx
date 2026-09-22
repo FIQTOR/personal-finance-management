@@ -1,10 +1,9 @@
-import React, { useEffect, useState } from 'react';
-import axios from 'axios';
+import React, { useEffect, useCallback, useState } from 'react';
 import { TbLock, TbMail, TbArrowRight, TbCheck, TbChevronRight, TbWallet } from 'react-icons/tb';
-import { useAppDispatch } from '@/store/hooks';
-import { refreshToken } from '@/store/authSlice';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import AppConfig from '@/config/AppConfig';
+import authApi from '@/services/authApi';
+import { useLogin } from '@/hooks/useLogin';
 import LoadingPage from '@/components/LoadingPage';
 import NeuralNetworkBackground from '@/components/NeuralNetworkBackground';
 
@@ -12,80 +11,37 @@ const Signin: React.FC = () => {
     const location = useLocation();
     const { status, message } = location.state || {};
 
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
-    const [rememberMe, setRememberMe] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
 
-    const [error, setError] = useState({ email: '', password: '', general: '' });
-    const [isLoading, setLoading] = useState(false);
-    const [response, setResponse] = useState<any>(null);
-
     const navigate = useNavigate();
-    const dispatch = useAppDispatch();
 
-    useEffect(() => {
-        document.title = `Sign In ${AppConfig.exTitle}`
-        checkSetup();
-    }, [])
+    const {
+        email, setEmail,
+        password, setPassword,
+        rememberMe, setRememberMe,
+        errors: error,
+        response, setResponse,
+        isLoading,
+        submit,
+        signInWithGoogle,
+    } = useLogin();
 
-    const checkSetup = async () => {
+    const checkSetup = useCallback(async () => {
         try {
-            const res = await axios.get(`${AppConfig.baseApiUrl}/check-setup`);
-            if (res.data.success && res.data.setupRequired) {
+            const res = await authApi.checkSetup();
+            if (res.data.success && res.data.data.setupRequired) {
                 navigate('/setup', { replace: true });
             }
         } catch {
             // ignore
         }
-    }
+    }, [navigate]);
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setError({ email: '', password: '', general: '' });
+    useEffect(() => {
+        document.title = `Sign In ${AppConfig.exTitle}`
+        checkSetup();
+    }, [checkSetup])
 
-        let hasError = false;
-        if (!email) {
-            setError(prev => ({ ...prev, email: 'Email is required.' }));
-            hasError = true;
-        }
-
-        if (!password) {
-            setError(prev => ({ ...prev, password: 'Password is required.' }));
-            hasError = true;
-        }
-
-        if (hasError) return;
-
-        try {
-            setLoading(true);
-            await axios.post(`${AppConfig.baseApiUrl}/signin`, {
-                email,
-                password,
-                remember_me: rememberMe
-            }, { withCredentials: true });
-
-            const result = await dispatch(refreshToken() as any);
-
-            if (result.meta.requestStatus === 'fulfilled') {
-                const origin = location.state?.from?.pathname || '/panel/dashboard';
-                navigate(origin, { replace: true });
-            } else {
-                throw new Error('Failed to update auth state');
-            }
-        } catch (error: any) {
-            setResponse(error.response?.data || {
-                status: 'error',
-                message: 'Login failed. Please try again.'
-            });
-            setLoading(false);
-        }
-    };
-
-    const handleSigninWithGoogle = () => {
-        const originPath = location.state?.from?.pathname || '/panel/dashboard';
-        window.location.href = `${AppConfig.baseApiUrl}/auth/google?origin=${originPath}`;
-    };
     if (isLoading) return <LoadingPage />;
 
     return (
@@ -143,7 +99,7 @@ const Signin: React.FC = () => {
                     )}
 
                     {response && response.message && !response.errors && (
-                        <div className={`mb-6 p-4 rounded-xl border flex justify-between items-start gap-3 ${response.status === 'success' ? 'bg-green-50 border-green-200 text-green-700 dark:bg-green-900/20 dark:border-green-800 dark:text-green-400' : 'bg-red-50 border-red-200 text-red-700 dark:bg-red-900/20 dark:border-red-800 dark:text-red-400'}`}>
+                        <div className={`mb-6 p-4 rounded-xl border flex justify-between items-start gap-3 ${response.success ? 'bg-green-50 border-green-200 text-green-700 dark:bg-green-900/20 dark:border-green-800 dark:text-green-400' : 'bg-red-50 border-red-200 text-red-700 dark:bg-red-900/20 dark:border-red-800 dark:text-red-400'}`}>
                             <p className='text-sm'>{response.message}</p>
                             <button onClick={() => setResponse(null)} className="text-current opacity-70 hover:opacity-100 font-bold">×</button>
                         </div>
@@ -156,16 +112,16 @@ const Signin: React.FC = () => {
                                 <button onClick={() => setResponse(null)} className="text-red-500 hover:text-red-700 dark:hover:text-red-300 font-bold">×</button>
                             </div>
                             <ul className="list-disc list-inside text-sm space-y-1">
-                                {Object.entries(response.errors).map(([field, messages]) => (
-                                    <li key={field} className="capitalize">
-                                        <span className="font-medium">{field}:</span> {Array.isArray(messages) ? (messages as string[]).join(', ') : String(messages)}
+                                {(response.errors as Array<{ path?: string; message: string } | string>).map((err, i) => (
+                                    <li key={i} className="capitalize">
+                                        {typeof err === 'string' ? err : `${err.path ?? ''}: ${err.message}`}
                                     </li>
                                 ))}
                             </ul>
                         </div>
                     )}
 
-                    <form onSubmit={handleSubmit} className='space-y-5'>
+                    <form onSubmit={submit} className='space-y-5'>
                         <div className='space-y-2'>
                             <label className='text-sm font-semibold text-neutral-700 dark:text-neutral-300 ml-1'>Email Address</label>
                             <div className='relative group'>
@@ -235,7 +191,7 @@ const Signin: React.FC = () => {
                         </div>
 
                         <div
-                            onClick={handleSigninWithGoogle}
+                            onClick={signInWithGoogle}
                             className='cursor-pointer group w-full py-4 px-6 rounded-2xl bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 hover:border-emerald-500/50 dark:hover:border-emerald-500/50 hover:bg-neutral-50 dark:hover:bg-neutral-700/50 transition-all duration-300 flex items-center justify-between shadow-xs hover:shadow-md active:scale-[0.98]'
                         >
                             <div className='flex items-center gap-4'>

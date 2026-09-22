@@ -5,7 +5,7 @@ import { selectAuth } from '@/store/authSlice';
 import { Link, useNavigate } from 'react-router-dom';
 
 const Profile = () => {
-    const { user }: any = useAppSelector(selectAuth);
+    const { user } = useAppSelector(selectAuth);
     const navigate = useNavigate();
     const [isHovered, setIsHovered] = useState(false);
     const [copied, setCopied] = useState(false);

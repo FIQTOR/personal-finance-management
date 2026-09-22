@@ -1,9 +1,10 @@
 import HelmetContainer from "@/components/HelmetContainer";
 import AppConfig from "@/config/AppConfig";
 import NeuralNetworkBackground from "@/components/NeuralNetworkBackground";
-import { useEffect } from "react";
-import axios from "axios";
+import { useCallback, useEffect } from "react";
+import authApi from "@/services/authApi";
 import { useNavigate } from "react-router-dom";
+import { motion, type Variants } from "framer-motion";
 import {
     TbWallet,
     TbChartPie,
@@ -15,26 +16,26 @@ import {
     TbRocket
 } from 'react-icons/tb';
 import { Link } from "react-router-dom";
-import { motion } from "framer-motion";
 
 export default function Home() {
     const navigate = useNavigate();
 
-    useEffect(() => {
-        checkSetup();
-    }, []);
-
-    const checkSetup = async () => {
+    const checkSetup = useCallback(async () => {
         try {
-            const res = await axios.get(`${AppConfig.baseApiUrl}/check-setup`);
-            if (res.data.success && res.data.setupRequired) {
+            const res = await authApi.checkSetup();
+            if (res.data.success && res.data.data.setupRequired) {
                 navigate('/setup', { replace: true });
             }
         } catch {
             // ignore
         }
-    };
-    const fadeIn: any = {
+    }, [navigate]);
+
+    useEffect(() => {
+        checkSetup();
+    }, [checkSetup]);
+
+    const fadeIn: Variants = {
         hidden: { opacity: 0, y: 30 },
         visible: (i: number = 0) => ({
             opacity: 1,

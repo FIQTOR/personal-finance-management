@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { TbKey, TbEdit, TbTrash, TbPlus, TbX, TbLoader } from 'react-icons/tb'
 import Notification from '@/components/PanelNotification'
 import StaticDataTable from '@/components/StaticDataTable'
 import AppConfig from '@/config/AppConfig'
-import axiosJWT from '@/utils/axiosJWT'
+import apiClient from '@/services/apiClient';
+import { getErrorData, getErrorMessage } from '@/utils/error';
 
 interface CreatorUpdater {
     id: number
@@ -21,7 +22,7 @@ interface Permission {
 }
 
 interface ApiResponse {
-    status: 'success' | 'error'
+    success: boolean
     message: string
     data?: Permission[]
     total?: number
@@ -52,11 +53,11 @@ export default function PermissionManagement() {
     const [modalLoading, setModalLoading] = useState(false)
     const [modalError, setModalError] = useState<string | null>(null)
 
-    const GetPermissions = async () => {
+    const GetPermissions = useCallback(async () => {
         try {
             setLoading(true)
             const startTime = performance.now()
-            const res = await axiosJWT.get<{ time?: number; data: Permission[]; total: number }>(`${AppConfig.baseApiUrl}/permissions`, {
+            const res = await apiClient.get<{ success: boolean; message: string; data: { permissions: Permission[]; total: number }; time?: number }>(`/permissions`, {
                 params: {
                     search: searchTerm,
                     orderBy,
@@ -68,19 +69,19 @@ export default function PermissionManagement() {
             const endTime = performance.now()
             const duration = res.data.time ?? Math.round(endTime - startTime)
 
-            setPermissions(res.data.data)
-            setTotal(res.data.total)
+            setPermissions(res.data.data.permissions)
+            setTotal(res.data.data.total)
             setFetchTime(duration)
             setLoading(false)
         } catch {
             setLoading(false)
         }
-    }
+    }, [searchTerm, orderBy, order, limit, page])
 
     useEffect(() => {
         document.title = `Permission Management ${AppConfig.exTitle}`
         GetPermissions()
-    }, [searchTerm, orderBy, order, limit, page])
+    }, [GetPermissions])
 
     const handleOpenAddModal = () => {
         setModalMode('add')
@@ -113,16 +114,16 @@ export default function PermissionManagement() {
         setModalLoading(true)
         try {
             if (modalMode === 'add') {
-                const res = await axiosJWT.post(`${AppConfig.baseApiUrl}/permissions`, formData)
+                const res = await apiClient.post(`/permissions`, formData)
                 setResponse(res.data)
             } else if (modalMode === 'edit' && editingPermission) {
-                const res = await axiosJWT.put(`${AppConfig.baseApiUrl}/permissions/${editingPermission.id}`, formData)
+                const res = await apiClient.put(`/permissions/${editingPermission.id}`, formData)
                 setResponse(res.data)
             }
             setIsModalOpen(false)
             GetPermissions()
-        } catch (err: any) {
-            setModalError(err.response?.data?.message || 'Failed to save permission')
+        } catch (err: unknown) {
+            setModalError(getErrorMessage(err, 'Failed to save permission'))
         } finally {
             setModalLoading(false)
         }
@@ -152,19 +153,16 @@ export default function PermissionManagement() {
         if (!deleteId) return
 
         try {
-            const res = await axiosJWT.delete(`${AppConfig.baseApiUrl}/permissions/${deleteId}`)
+            const res = await apiClient.delete(`/permissions/${deleteId}`)
             setResponse(res.data)
-            if (res.data.status === 'success') {
+            if (res.data.success) {
                 GetPermissions()
                 setTimeout(() => {
                     setResponse(null)
                 }, 3000)
             }
-        } catch (error: any) {
-            setResponse(error.response?.data || {
-                status: 'error',
-                message: 'Failed to delete permission'
-            })
+        } catch (error: unknown) {
+            setResponse(getErrorData<ApiResponse>(error, { success: false, message: 'Failed to delete permission' }))
             setTimeout(() => {
                 setResponse(null)
             }, 3000)
@@ -232,7 +230,7 @@ export default function PermissionManagement() {
                 </div>
 
                 {response && (
-                    <div className={`p-3 rounded-lg backdrop-blur-sm transition-all duration-300 text-sm ${response.status === 'success'
+                    <div className={`p-3 rounded-lg backdrop-blur-sm transition-all duration-300 text-sm ${response.success
                         ? 'bg-green-500/10 text-green-700 border border-green-200/50'
                         : 'bg-red-500/10 text-red-700 border border-red-200/50'
                         }`}>

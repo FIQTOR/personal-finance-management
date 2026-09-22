@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
     Chart as ChartJS,
     CategoryScale,
@@ -17,9 +17,9 @@ import AnimatedNumber from '@/components/AnimatedNumber';
 import { TbRefresh, TbDownload, TbChartBar, TbWallet, TbArrowUpRight, TbArrowDownRight, TbChartPie, TbTarget, TbActivity, TbUsers } from 'react-icons/tb';
 import { useAppSelector } from '@/store/hooks';
 import { selectAuth } from '@/store/authSlice';
-import axiosJWT from '@/utils/axiosJWT';
+import apiClient from '@/services/apiClient';
 import AppConfig from '@/config/AppConfig';
-import { useLanguage } from '@/context/LanguageContext';
+import { useLanguage } from '@/context/useLanguage';
 
 ChartJS.register(
     CategoryScale,
@@ -33,29 +33,60 @@ ChartJS.register(
     ArcElement
 );
 
+interface MonthlyTrend {
+    month: string;
+    income: number;
+    expense: number;
+}
+
+interface RecentActivity {
+    id: number;
+    activity_type: string;
+    description?: string;
+    created_at?: string;
+    user?: { name?: string };
+}
+
+interface DashboardSummary {
+    totalIncome?: number;
+    totalExpense?: number;
+    netBalance?: number;
+    budgetUsagePercent?: number;
+    currentSavedAmount?: number;
+    totalTargetSavings?: number;
+    totalUsers?: number;
+}
+
+interface DashboardAnalytics {
+    summary?: DashboardSummary;
+    monthlyTrends?: MonthlyTrend[];
+    expensesByCategory?: Record<string, number>;
+    recentActivities?: RecentActivity[];
+}
+
 export default function Dashboard() {
     const { user } = useAppSelector(selectAuth);
     const { t } = useLanguage();
-    const [analytics, setAnalytics] = useState<any>(null);
+    const [analytics, setAnalytics] = useState<DashboardAnalytics | null>(null);
     const [loading, setLoading] = useState(true);
     const [isRefreshing, setIsRefreshing] = useState(false);
 
-    useEffect(() => {
-        document.title = `Dashboard ${AppConfig.exTitle}`;
-        fetchAnalytics();
-    }, []);
-
-    const fetchAnalytics = async () => {
+    const fetchAnalytics = useCallback(async () => {
         try {
             setLoading(true);
-            const response = await axiosJWT.get(`${AppConfig.baseApiUrl}/analytics/dashboard`);
+            const response = await apiClient.get(`/analytics/dashboard`);
             setAnalytics(response.data?.data || null);
         } catch (error) {
             console.error('Error fetching analytics:', error);
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
+
+    useEffect(() => {
+        document.title = `Dashboard ${AppConfig.exTitle}`;
+        fetchAnalytics();
+    }, [fetchAnalytics]);
 
     const refreshData = async () => {
         setIsRefreshing(true);
@@ -88,11 +119,11 @@ export default function Dashboard() {
     const recentActivities = analytics.recentActivities || [];
 
     const trendChartData = {
-        labels: monthlyTrends.map((t: any) => t.month),
+        labels: monthlyTrends.map((trend) => trend.month),
         datasets: [
             {
                 label: t('income'),
-                data: monthlyTrends.map((t: any) => t.income),
+                data: monthlyTrends.map((trend) => trend.income),
                 borderColor: 'rgba(16, 185, 129, 0.8)',
                 backgroundColor: 'rgba(16, 185, 129, 0.15)',
                 tension: 0.4,
@@ -100,7 +131,7 @@ export default function Dashboard() {
             },
             {
                 label: t('expense'),
-                data: monthlyTrends.map((t: any) => t.expense),
+                data: monthlyTrends.map((trend) => trend.expense),
                 borderColor: 'rgba(239, 68, 68, 0.8)',
                 backgroundColor: 'rgba(239, 68, 68, 0.15)',
                 tension: 0.4,
@@ -269,7 +300,7 @@ export default function Dashboard() {
                         {recentActivities.length === 0 ? (
                             <p className="text-xs text-gray-400 dark:text-neutral-500 py-4 text-center">No recent activities recorded.</p>
                         ) : (
-                            recentActivities.map((act: any) => (
+                            recentActivities.map((act) => (
                                 <div key={act.id} className="flex items-center justify-between p-3 rounded-2xl bg-gray-50 dark:bg-neutral-800/50 border border-gray-100 dark:border-neutral-800/60 text-xs">
                                     <div className="space-y-0.5 min-w-0 pr-2">
                                         <div className="font-semibold text-gray-900 dark:text-white truncate">
@@ -298,8 +329,8 @@ export default function Dashboard() {
                         <div
                             className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-500"
                             style={{
-                                width: summary.totalTargetSavings > 0
-                                    ? `${Math.min(Math.round((summary.currentSavedAmount / summary.totalTargetSavings) * 100), 100)}%`
+                                width: (summary.totalTargetSavings ?? 0) > 0
+                                    ? `${Math.min(Math.round(((summary.currentSavedAmount ?? 0) / (summary.totalTargetSavings ?? 1)) * 100), 100)}%`
                                     : '0%'
                             }}
                         />

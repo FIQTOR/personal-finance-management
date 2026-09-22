@@ -1,37 +1,48 @@
 
 
 import { TbUser, TbMail, TbTrash, TbPencil, TbX, TbShieldCheck, TbLock, TbActivity, TbCheck, TbArrowLeft, TbUpload, TbKey } from 'react-icons/tb'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import LoadingPage from '@/components/LoadingPage'
 import Notification from '@/components/PanelNotification';
-import Forbidden from '@/components/Forbidden'
 import AppConfig from '@/config/AppConfig'
 import { useRef } from 'react'
 import ReactCrop from 'react-image-crop'
 import type { Crop } from 'react-image-crop'
-import { useAppSelector } from '@/store/hooks'
-import { selectAuth } from '@/store/authSlice'
-import axiosJWT from '@/utils/axiosJWT'
+import apiClient from '@/services/apiClient';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { getErrorData } from '@/utils/error';
+
+interface EditableUser {
+    id: number;
+    name: string;
+    username?: string;
+    email: string;
+    avatar_url?: string | null;
+    role_id: number;
+    is_blocked: boolean;
+    is_verified: boolean;
+    isVerified?: boolean;
+}
+
+interface ApiResponse {
+    success: boolean;
+    message: string;
+}
 
 export default function UserEditPage() {
-    const { user } = useAppSelector(selectAuth);
     const navigate = useNavigate()
     const { id } = useParams()
     const [roles, setRoles] = useState<Array<{ id: number; name: string }>>([]);
-    const [user_, setUser] = useState<any>(null)
-    const [response, setResponse] = useState<any>(null);
+    const [user_, setUser] = useState<EditableUser | null>(null)
+    const [response, setResponse] = useState<ApiResponse | null>(null);
     const [previewImage, setPreviewImage] = useState<string | null>(null);
     const [isLoading, setLoading] = useState(true);
     const [uploadError, setUploadError] = useState<string | null>(null);
     const [deleteId, setDeleteId] = useState<number | null>(null);
 
-    const permissions = new Set(user?.role?.permissions?.map((p: any) => p.name))
-    if (!permissions.has('manage_users')) return <Forbidden />
-
     const [showCropModal, setShowCropModal] = useState(false);
     const [tempImage, setTempImage] = useState<string | null>(null);
-    const [crop, setCrop] = useState<Crop | any>(null);
+    const [crop, setCrop] = useState<Crop | undefined>(undefined);
     const imageRef = useRef<HTMLImageElement | null>(null);
 
     // Add onImageLoad handler
@@ -46,8 +57,7 @@ export default function UserEditPage() {
             width: cropWidth,
             height: cropWidth,
             x: x,
-            y: y,
-            aspect: 1
+            y: y
         });
     };
 
@@ -110,23 +120,23 @@ export default function UserEditPage() {
         }
     };
 
-    const getUser = async () => {
+    const getUser = useCallback(async () => {
         try {
-            const res = await axiosJWT.get(`${AppConfig.baseApiUrl}/users/${id}`);
-            const resRole = await axiosJWT.get(`${AppConfig.baseApiUrl}/roles`);
+            const res = await apiClient.get(`/users/${id}`);
+            const resRole = await apiClient.get(`/roles`);
 
-            setRoles(resRole.data.data);
-            setUser(res.data.user);
+            setRoles(resRole.data.data.roles);
+            setUser(res.data.data.user);
             setLoading(false)
         } catch (error) {
-            console.log(error);
+            console.error(error);
         }
-    }
+    }, [id])
 
     useEffect(() => {
         document.title = `Edit User ${AppConfig.exTitle}`
         getUser();
-    }, []);
+    }, [getUser]);
 
     if (!user_) return <LoadingPage />
 
@@ -139,7 +149,7 @@ export default function UserEditPage() {
             const formData = new FormData();
             formData.append('name', user_.name);
             formData.append('email', user_.email);
-            formData.append('roleId', user_.role_id);
+            formData.append('roleId', String(user_.role_id));
             formData.append('is_blocked', user_.is_blocked.toString());  // Add this line
             formData.append('is_verified', user_.is_verified.toString());  // Add this line
 
@@ -150,8 +160,7 @@ export default function UserEditPage() {
                 formData.append('avatar', blob, 'avatar.jpg');
             }
 
-            const res = await axiosJWT.put(
-                `${AppConfig.baseApiUrl}/users/${id}`,
+            const res = await apiClient.put(`/users/${id}`,
                 formData,
                 {
                     headers: {
@@ -161,16 +170,13 @@ export default function UserEditPage() {
             );
 
             setResponse(res.data);
-            if (res.data.status === 'success') {
+            if (res.data.success) {
                 setTimeout(() => {
                     navigate('/panel/users');
                 }, 2000);
             }
-        } catch (error: any) {
-            setResponse(error.response?.data || {
-                status: 'error',
-                message: 'Failed to update user'
-            });
+        } catch (error: unknown) {
+            setResponse(getErrorData<ApiResponse>(error, { success: false, message: 'Failed to update user' }));
         } finally {
             setLoading(false);
         }
@@ -183,18 +189,15 @@ export default function UserEditPage() {
         if (!deleteId) return;
         setLoading(true);
         try {
-            const res = await axiosJWT.delete(`${AppConfig.baseApiUrl}/users/${deleteId}`);
+            const res = await apiClient.delete(`/users/${deleteId}`);
             setResponse(res.data);
-            if (res.data.status === 'success') {
+            if (res.data.success) {
                 setTimeout(() => {
                     navigate('/panel/users');
                 }, 2000);
             }
-        } catch (error: any) {
-            setResponse(error.response?.data || {
-                status: 'error',
-                message: 'Failed to delete user'
-            });
+        } catch (error: unknown) {
+            setResponse(getErrorData<ApiResponse>(error, { success: false, message: 'Failed to delete user' }));
         } finally {
             setLoading(false);
             setDeleteId(null);
@@ -269,8 +272,8 @@ export default function UserEditPage() {
                             </div>
 
                             {uploadError && <p className="text-red-400 dark:text-red-300 mt-4 text-center">{uploadError}</p>}
-                            {response && response.status && response.message &&
-                                <p className={`mt-4 text-center ${response.status === 'success' ? 'text-green-400 dark:text-green-300' : 'text-red-400 dark:text-red-300'}`}>
+                            {response && response.message &&
+                                <p className={`mt-4 text-center ${response.success ? 'text-green-400 dark:text-green-300' : 'text-red-400 dark:text-red-300'}`}>
                                     {response.message}
                                 </p>
                             }
@@ -369,7 +372,7 @@ export default function UserEditPage() {
                                 </div>
 
                                 <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-4 pt-4">
-                                    {(!response || (response && response.status !== 'success')) && <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+                                    {(!response || (response && !response.success)) && <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
                                         <button
                                             type="submit"
                                             disabled={isLoading}
@@ -399,7 +402,7 @@ export default function UserEditPage() {
                                             <TbActivity size={20} />
                                             User Activities
                                         </Link>
-                                        {(!response || (response && response.status !== 'success')) && <>
+                                        {(!response || (response && !response.success)) && <>
                                             <button
                                                 type="button"
                                                 onClick={handleDelete}

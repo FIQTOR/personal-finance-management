@@ -1,13 +1,13 @@
-import React, { useEffect, useState } from 'react';
-import axios from 'axios';
+import React, { useCallback, useEffect, useState } from 'react';
 import { TbWallet, TbUser, TbMail, TbLock, TbArrowRight, TbWorld, TbCurrencyDollar } from 'react-icons/tb';
 import AppConfig from '@/config/AppConfig';
+import authApi from '@/services/authApi';
 import { useNavigate } from 'react-router-dom';
 import LoadingPage from '@/components/LoadingPage';
 import { useAppDispatch } from '@/store/hooks';
 import { refreshToken } from '@/store/authSlice';
 import NeuralNetworkBackground from '@/components/NeuralNetworkBackground';
-import { useLanguage } from '@/context/LanguageContext';
+import { useLanguage } from '@/context/useLanguage';
 
 export default function SetupPage() {
   const navigate = useNavigate();
@@ -23,21 +23,21 @@ export default function SetupPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    document.title = `Initial System Setup ${AppConfig.exTitle}`;
-    checkIfSetupNeeded();
-  }, []);
-
-  const checkIfSetupNeeded = async () => {
+  const checkIfSetupNeeded = useCallback(async () => {
     try {
-      const res = await axios.get(`${AppConfig.baseApiUrl}/check-setup`);
-      if (res.data.success && !res.data.setupRequired) {
+      const res = await authApi.checkSetup();
+      if (res.data.success && !res.data.data.setupRequired) {
         navigate('/signin', { replace: true });
       }
     } catch {
       // ignore
     }
-  };
+  }, [navigate]);
+
+  useEffect(() => {
+    document.title = `Initial System Setup ${AppConfig.exTitle}`;
+    checkIfSetupNeeded();
+  }, [checkIfSetupNeeded]);
 
   const handleSetupSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,23 +52,24 @@ export default function SetupPage() {
       setIsLoading(true);
       setLanguage(selectedLang);
 
-      await axios.post(`${AppConfig.baseApiUrl}/setup`, {
+      await authApi.setup({
         name,
         email,
         password,
         currency,
         language: selectedLang
-      }, { withCredentials: true });
+      });
 
-      const result = await dispatch(refreshToken() as any);
+      const result = await dispatch(refreshToken());
 
       if (result.meta.requestStatus === 'fulfilled') {
         navigate('/panel/dashboard', { replace: true });
       } else {
         throw new Error('Failed to start session');
       }
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Setup failed. Please try again.');
+    } catch (err) {
+      const error = err as { response?: { data?: { message?: string } } };
+      setError(error.response?.data?.message || 'Setup failed. Please try again.');
       setIsLoading(false);
     }
   };

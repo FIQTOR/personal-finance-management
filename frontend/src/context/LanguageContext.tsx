@@ -1,14 +1,7 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useState } from 'react';
 
 export type Language = 'en' | 'id' | 'zh' | 'ar' | 'hi';
 
-export const LANGUAGES: { code: Language; label: string; name: string }[] = [
-  { code: 'en', label: 'EN', name: 'English' },
-  { code: 'id', label: 'ID', name: 'Bahasa Indonesia' },
-  { code: 'zh', label: 'ZH', name: '中文' },
-  { code: 'ar', label: 'AR', name: 'العربية' },
-  { code: 'hi', label: 'HI', name: 'हिन्दी' },
-];
 
 const translations: Record<Language, Record<string, string>> = {
   en: {
@@ -173,13 +166,15 @@ const translations: Record<Language, Record<string, string>> = {
   }
 };
 
-interface LanguageContextType {
+export interface LanguageContextType {
   language: Language;
   setLanguage: (lang: Language) => void;
   t: (key: string) => string;
 }
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
+
+export { LanguageContext };
 
 export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [language, setLanguageState] = useState<Language>(() => {
@@ -201,12 +196,4 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       {children}
     </LanguageContext.Provider>
   );
-};
-
-export const useLanguage = (): LanguageContextType => {
-  const context = useContext(LanguageContext);
-  if (!context) {
-    throw new Error('useLanguage must be used within a LanguageProvider');
-  }
-  return context;
 };

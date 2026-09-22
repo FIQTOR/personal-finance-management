@@ -6,3 +6,12 @@ declare module '~react-pages' {
     const routes: RouteObject[]
     export default routes
 }
+
+// Allow opting out of the automatic token-refresh interceptor per request.
+import 'axios';
+
+declare module 'axios' {
+    export interface AxiosRequestConfig {
+        skipAuthRefresh?: boolean;
+    }
+}

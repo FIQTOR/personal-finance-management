@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { TbShieldCheck, TbEdit, TbTrash, TbPlus, TbX, TbLoader } from 'react-icons/tb'
 import Notification from '@/components/PanelNotification'
 import StaticDataTable from '@/components/StaticDataTable'
 import AppConfig from '@/config/AppConfig'
-import axiosJWT from '@/utils/axiosJWT'
+import apiClient from '@/services/apiClient';
+import { getErrorData, getErrorMessage } from '@/utils/error';
 
 interface Role {
     id: number
@@ -12,8 +13,18 @@ interface Role {
     permissions: Permission[]
     created_at: string
     updated_at: string
-    creator: any
-    updater: any
+    creator: CreatorUpdater | null
+    updater: CreatorUpdater | null
+}
+
+interface CreatorUpdater {
+    id: number
+    name: string
+}
+
+interface ApiResponse {
+    success: boolean
+    message: string
 }
 
 interface Permission {
@@ -31,7 +42,7 @@ export default function RoleManagement() {
     const [page, setPage] = useState(1)
     const [total, setTotal] = useState(0)
     const [loading, setLoading] = useState(true)
-    const [response, setResponse] = useState<any>(null)
+    const [response, setResponse] = useState<ApiResponse | null>(null)
     const [deleteId, setDeleteId] = useState<number | null>(null)
     const [selectedRoles, setSelectedRoles] = useState<number[]>([])
     const [fetchTime, setFetchTime] = useState<number | null>(null)
@@ -49,11 +60,11 @@ export default function RoleManagement() {
     const [modalLoading, setModalLoading] = useState(false)
     const [modalError, setModalError] = useState<string | null>(null)
 
-    const GetRoles = async () => {
+    const GetRoles = useCallback(async () => {
         try {
             setLoading(true)
             const startTime = performance.now()
-            const res = await axiosJWT.get(`${AppConfig.baseApiUrl}/roles`, {
+            const res = await apiClient.get(`/roles`, {
                 params: {
                     search: searchTerm,
                     orderBy,
@@ -64,28 +75,28 @@ export default function RoleManagement() {
             })
             const endTime = performance.now()
             const duration = res.data.time ?? Math.round(endTime - startTime)
-            setRoles(res.data.data)
-            setTotal(res.data.total || res.data.data.length)
+            setRoles(res.data.data.roles)
+            setTotal(res.data.data.total ?? res.data.data.roles.length)
             setFetchTime(duration)
             setLoading(false)
         } catch {
             setLoading(false)
         }
-    }
-
-    const fetchAvailablePermissions = async () => {
-        try {
-            const res = await axiosJWT.get(`${AppConfig.baseApiUrl}/permissions`)
-            setAvailablePermissions(res.data.data || res.data)
-        } catch (err) {
-            console.error('Failed to fetch permissions:', err)
-        }
-    }
+    }, [searchTerm, orderBy, order, limit, page])
 
     useEffect(() => {
         document.title = `Role Management ${AppConfig.exTitle}`
         GetRoles()
-    }, [searchTerm, orderBy, order, limit, page])
+    }, [GetRoles])
+
+    const fetchAvailablePermissions = async () => {
+        try {
+            const res = await apiClient.get(`/permissions`)
+            setAvailablePermissions(res.data.data.permissions || [])
+        } catch (err) {
+            console.error('Failed to fetch permissions:', err)
+        }
+    }
 
     const handleOpenAddModal = () => {
         setModalMode('add')
@@ -130,16 +141,16 @@ export default function RoleManagement() {
         setModalLoading(true)
         try {
             if (modalMode === 'add') {
-                const res = await axiosJWT.post(`${AppConfig.baseApiUrl}/roles`, formData)
+                const res = await apiClient.post(`/roles`, formData)
                 setResponse(res.data)
             } else if (modalMode === 'edit' && editingRole) {
-                const res = await axiosJWT.put(`${AppConfig.baseApiUrl}/roles/${editingRole.id}`, formData)
+                const res = await apiClient.put(`/roles/${editingRole.id}`, formData)
                 setResponse(res.data)
             }
             setIsModalOpen(false)
             GetRoles()
-        } catch (err: any) {
-            setModalError(err.response?.data?.message || 'Failed to save role')
+        } catch (err: unknown) {
+            setModalError(getErrorMessage(err, 'Failed to save role'))
         } finally {
             setModalLoading(false)
         }
@@ -169,14 +180,11 @@ export default function RoleManagement() {
         if (!deleteId) return
 
         try {
-            const res = await axiosJWT.delete(`${AppConfig.baseApiUrl}/roles/${deleteId}`)
+            const res = await apiClient.delete(`/roles/${deleteId}`)
             await GetRoles()
             setResponse(res.data)
-        } catch (error: any) {
-            setResponse(error.response?.data || {
-                status: 'error',
-                message: 'Failed to delete role'
-            })
+        } catch (error: unknown) {
+            setResponse(getErrorData<ApiResponse>(error, { success: false, message: 'Failed to delete role' }))
         }
         setDeleteId(null)
     }
@@ -249,7 +257,7 @@ export default function RoleManagement() {
                 </div>
 
                 {response && (
-                    <div className={`p-3 rounded-lg backdrop-blur-sm transition-all duration-300 text-sm ${response.status === 'success'
+                    <div className={`p-3 rounded-lg backdrop-blur-sm transition-all duration-300 text-sm ${response.success
                         ? 'bg-green-500/10 text-green-700 border border-green-200/50'
                         : 'bg-red-500/10 text-red-700 border border-red-200/50'
                         }`}>
@@ -308,7 +316,7 @@ export default function RoleManagement() {
                             sortable: true,
                             width: '96px',
                             hideOnMobile: true,
-                            render: (updater: any) => (
+                            render: (updater: CreatorUpdater | null) => (
                                 <span className="text-xs text-gray-700 dark:text-neutral-300">
                                     {updater?.name || '-'}
                                 </span>
@@ -328,7 +336,7 @@ export default function RoleManagement() {
                             sortable: true,
                             width: '96px',
                             hideOnMobile: true,
-                            render: (creator: any) => (
+                            render: (creator: CreatorUpdater | null) => (
                                 <span className="text-xs text-gray-700 dark:text-neutral-300">
                                     {creator?.name || '-'}
                                 </span>

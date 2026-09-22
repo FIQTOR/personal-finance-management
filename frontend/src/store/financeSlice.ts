@@ -1,7 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import type { PayloadAction } from '@reduxjs/toolkit';
-import axiosJWT from '@/utils/axiosJWT';
-import AppConfig from '@/config/AppConfig';
+import apiClient from '@/services/apiClient';
 import type { Category, Transaction, Budget, Goal, ApiResponse, TransactionFilter } from '@/types/finance';
 
 interface FinanceState {
@@ -26,7 +25,7 @@ const initialState: FinanceState = {
 
 export const fetchAppSettings = createAsyncThunk('finance/fetchAppSettings', async () => {
   try {
-    const res = await axiosJWT.get(`${AppConfig.baseApiUrl}/settings`);
+    const res = await apiClient.get(`/settings`);
     return res.data?.data?.default_currency || 'USD';
   } catch {
     return 'USD';
@@ -36,7 +35,7 @@ export const fetchAppSettings = createAsyncThunk('finance/fetchAppSettings', asy
 // Categories Async Thunks
 export const fetchCategories = createAsyncThunk('finance/fetchCategories', async (_, { rejectWithValue }) => {
   try {
-    const res = await axiosJWT.get<ApiResponse<Category[]>>(`${AppConfig.baseApiUrl}/categories`);
+    const res = await apiClient.get<ApiResponse<Category[]>>(`/categories`);
     return res.data.data;
   } catch (err: unknown) {
     const errorMsg = (err as { response?: { data?: { message?: string } } }).response?.data?.message || 'Failed to fetch categories';
@@ -46,7 +45,7 @@ export const fetchCategories = createAsyncThunk('finance/fetchCategories', async
 
 export const createCategory = createAsyncThunk('finance/createCategory', async (data: Partial<Category>, { rejectWithValue }) => {
   try {
-    const res = await axiosJWT.post<ApiResponse<Category>>(`${AppConfig.baseApiUrl}/categories`, data);
+    const res = await apiClient.post<ApiResponse<Category>>(`/categories`, data);
     return res.data.data;
   } catch (err: unknown) {
     const errorMsg = (err as { response?: { data?: { message?: string } } }).response?.data?.message || 'Failed to create category';
@@ -57,7 +56,7 @@ export const createCategory = createAsyncThunk('finance/createCategory', async (
 // Transactions Async Thunks
 export const fetchTransactions = createAsyncThunk('finance/fetchTransactions', async (filter: TransactionFilter | void, { rejectWithValue }) => {
   try {
-    const res = await axiosJWT.get<ApiResponse<Transaction[]>>(`${AppConfig.baseApiUrl}/transactions`, { params: filter || {} });
+    const res = await apiClient.get<ApiResponse<Transaction[]>>(`/transactions`, { params: filter || {} });
     return res.data.data;
   } catch (err: unknown) {
     const errorMsg = (err as { response?: { data?: { message?: string } } }).response?.data?.message || 'Failed to fetch transactions';
@@ -67,7 +66,7 @@ export const fetchTransactions = createAsyncThunk('finance/fetchTransactions', a
 
 export const createTransaction = createAsyncThunk('finance/createTransaction', async (data: Partial<Transaction>, { rejectWithValue }) => {
   try {
-    const res = await axiosJWT.post<ApiResponse<Transaction>>(`${AppConfig.baseApiUrl}/transactions`, data);
+    const res = await apiClient.post<ApiResponse<Transaction>>(`/transactions`, data);
     return res.data.data;
   } catch (err: unknown) {
     const errorMsg = (err as { response?: { data?: { message?: string } } }).response?.data?.message || 'Failed to create transaction';
@@ -77,7 +76,7 @@ export const createTransaction = createAsyncThunk('finance/createTransaction', a
 
 export const updateTransaction = createAsyncThunk('finance/updateTransaction', async ({ id, data }: { id: number; data: Partial<Transaction> }, { rejectWithValue }) => {
   try {
-    const res = await axiosJWT.put<ApiResponse<Transaction>>(`${AppConfig.baseApiUrl}/transactions/${id}`, data);
+    const res = await apiClient.put<ApiResponse<Transaction>>(`/transactions/${id}`, data);
     return res.data.data;
   } catch (err: unknown) {
     const errorMsg = (err as { response?: { data?: { message?: string } } }).response?.data?.message || 'Failed to update transaction';
@@ -87,7 +86,7 @@ export const updateTransaction = createAsyncThunk('finance/updateTransaction', a
 
 export const deleteTransaction = createAsyncThunk('finance/deleteTransaction', async (id: number, { rejectWithValue }) => {
   try {
-    await axiosJWT.delete<ApiResponse<{ id: number }>>(`${AppConfig.baseApiUrl}/transactions/${id}`);
+    await apiClient.delete<ApiResponse<{ id: number }>>(`/transactions/${id}`);
     return id;
   } catch (err: unknown) {
     const errorMsg = (err as { response?: { data?: { message?: string } } }).response?.data?.message || 'Failed to delete transaction';
@@ -98,7 +97,7 @@ export const deleteTransaction = createAsyncThunk('finance/deleteTransaction', a
 // Budgets Async Thunks
 export const fetchBudgets = createAsyncThunk('finance/fetchBudgets', async (_, { rejectWithValue }) => {
   try {
-    const res = await axiosJWT.get<ApiResponse<Budget[]>>(`${AppConfig.baseApiUrl}/budgets`);
+    const res = await apiClient.get<ApiResponse<Budget[]>>(`/budgets`);
     return res.data.data;
   } catch (err: unknown) {
     const errorMsg = (err as { response?: { data?: { message?: string } } }).response?.data?.message || 'Failed to fetch budgets';
@@ -108,7 +107,7 @@ export const fetchBudgets = createAsyncThunk('finance/fetchBudgets', async (_, {
 
 export const createBudget = createAsyncThunk('finance/createBudget', async (data: Partial<Budget>, { rejectWithValue }) => {
   try {
-    const res = await axiosJWT.post<ApiResponse<Budget>>(`${AppConfig.baseApiUrl}/budgets`, data);
+    const res = await apiClient.post<ApiResponse<Budget>>(`/budgets`, data);
     return res.data.data;
   } catch (err: unknown) {
     const errorMsg = (err as { response?: { data?: { message?: string } } }).response?.data?.message || 'Failed to create budget';
@@ -118,7 +117,7 @@ export const createBudget = createAsyncThunk('finance/createBudget', async (data
 
 export const updateBudget = createAsyncThunk('finance/updateBudget', async ({ id, data }: { id: number; data: Partial<Budget> }, { rejectWithValue }) => {
   try {
-    const res = await axiosJWT.put<ApiResponse<Budget>>(`${AppConfig.baseApiUrl}/budgets/${id}`, data);
+    const res = await apiClient.put<ApiResponse<Budget>>(`/budgets/${id}`, data);
     return res.data.data;
   } catch (err: unknown) {
     const errorMsg = (err as { response?: { data?: { message?: string } } }).response?.data?.message || 'Failed to update budget';
@@ -128,7 +127,7 @@ export const updateBudget = createAsyncThunk('finance/updateBudget', async ({ id
 
 export const deleteBudget = createAsyncThunk('finance/deleteBudget', async (id: number, { rejectWithValue }) => {
   try {
-    await axiosJWT.delete<ApiResponse<{ id: number }>>(`${AppConfig.baseApiUrl}/budgets/${id}`);
+    await apiClient.delete<ApiResponse<{ id: number }>>(`/budgets/${id}`);
     return id;
   } catch (err: unknown) {
     const errorMsg = (err as { response?: { data?: { message?: string } } }).response?.data?.message || 'Failed to delete budget';
@@ -139,7 +138,7 @@ export const deleteBudget = createAsyncThunk('finance/deleteBudget', async (id: 
 // Goals Async Thunks
 export const fetchGoals = createAsyncThunk('finance/fetchGoals', async (_, { rejectWithValue }) => {
   try {
-    const res = await axiosJWT.get<ApiResponse<Goal[]>>(`${AppConfig.baseApiUrl}/goals`);
+    const res = await apiClient.get<ApiResponse<Goal[]>>(`/goals`);
     return res.data.data;
   } catch (err: unknown) {
     const errorMsg = (err as { response?: { data?: { message?: string } } }).response?.data?.message || 'Failed to fetch goals';
@@ -149,7 +148,7 @@ export const fetchGoals = createAsyncThunk('finance/fetchGoals', async (_, { rej
 
 export const createGoal = createAsyncThunk('finance/createGoal', async (data: Partial<Goal>, { rejectWithValue }) => {
   try {
-    const res = await axiosJWT.post<ApiResponse<Goal>>(`${AppConfig.baseApiUrl}/goals`, data);
+    const res = await apiClient.post<ApiResponse<Goal>>(`/goals`, data);
     return res.data.data;
   } catch (err: unknown) {
     const errorMsg = (err as { response?: { data?: { message?: string } } }).response?.data?.message || 'Failed to create goal';
@@ -159,7 +158,7 @@ export const createGoal = createAsyncThunk('finance/createGoal', async (data: Pa
 
 export const updateGoal = createAsyncThunk('finance/updateGoal', async ({ id, data }: { id: number; data: Partial<Goal> }, { rejectWithValue }) => {
   try {
-    const res = await axiosJWT.put<ApiResponse<Goal>>(`${AppConfig.baseApiUrl}/goals/${id}`, data);
+    const res = await apiClient.put<ApiResponse<Goal>>(`/goals/${id}`, data);
     return res.data.data;
   } catch (err: unknown) {
     const errorMsg = (err as { response?: { data?: { message?: string } } }).response?.data?.message || 'Failed to update goal';
@@ -169,7 +168,7 @@ export const updateGoal = createAsyncThunk('finance/updateGoal', async ({ id, da
 
 export const deleteGoal = createAsyncThunk('finance/deleteGoal', async (id: number, { rejectWithValue }) => {
   try {
-    await axiosJWT.delete<ApiResponse<{ id: number }>>(`${AppConfig.baseApiUrl}/goals/${id}`);
+    await apiClient.delete<ApiResponse<{ id: number }>>(`/goals/${id}`);
     return id;
   } catch (err: unknown) {
     const errorMsg = (err as { response?: { data?: { message?: string } } }).response?.data?.message || 'Failed to delete goal';

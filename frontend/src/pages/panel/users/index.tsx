@@ -3,12 +3,13 @@ import Notification from '@/components/PanelNotification'
 import AppConfig from '@/config/AppConfig'
 import { selectAuth } from '@/store/authSlice'
 import { useAppSelector } from '@/store/hooks'
-import axiosJWT from '@/utils/axiosJWT'
+import apiClient from '@/services/apiClient';
 import { Link } from 'react-router-dom'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { TbUser, TbPlus, TbEdit, TbShieldCheck, TbTrash, TbTrashOff } from 'react-icons/tb'
 import * as XLSX from "xlsx";
 import StaticDataTable from '@/components/StaticDataTable'
+import { getErrorData } from '@/utils/error'
 
 export interface CreatorUpdater {
     id: number;
@@ -43,13 +44,15 @@ export interface User {
 }
 
 interface ApiResponse {
-    status: 'success' | 'error';
+    success: boolean;
     message: string;
     data?: {
         users: User[];
         total: number;
     };
 }
+
+type UserRecord = User & { currentUserEmail?: string };
 
 export default function UserManagement() {
     const { user } = useAppSelector(selectAuth)
@@ -69,16 +72,11 @@ export default function UserManagement() {
     const [bulkDeleteMode, setBulkDeleteMode] = useState(false);
     const [fetchTime, setFetchTime] = useState<number | null>(null);
 
-    useEffect(() => {
-        document.title = `User Management ${AppConfig.exTitle}`
-        GetUsers()
-    }, [searchTerm, searchRole, orderBy, order, limit, page])
-
-    const GetUsers = async () => {
+    const GetUsers = useCallback(async () => {
         const startTime = performance.now();
         try {
             setLoading(true)
-            const res = await axiosJWT.get<{ data: { users: User[]; total: number } }>(`${AppConfig.baseApiUrl}/users`, {
+            const res = await apiClient.get<{ data: { users: User[]; total: number } }>(`/users`, {
                 params: {
                     search: searchTerm,
                     role: searchRole,
@@ -88,20 +86,25 @@ export default function UserManagement() {
                     page
                 }
             })
-            const resRole = await axiosJWT.get<{ data: Role[] }>(`${AppConfig.baseApiUrl}/roles`);
+            const resRole = await apiClient.get<{ data: { roles: Role[] } }>(`/roles`);
 
             const endTime = performance.now();
             setFetchTime(Math.round(endTime - startTime));
 
-            setRoles(resRole.data.data)
+            setRoles(resRole.data.data.roles)
             setUsers(res.data.data.users)
             setTotal(res.data.data.total)
             setLoading(false)
-        } catch (error: any) {
+        } catch (error: unknown) {
             setLoading(false)
             console.error(error)
         }
-    }
+    }, [searchTerm, searchRole, orderBy, order, limit, page])
+
+    useEffect(() => {
+        document.title = `User Management ${AppConfig.exTitle}`
+        GetUsers()
+    }, [GetUsers])
 
     const handleDelete = async (id: number) => {
         setDeleteId(id);
@@ -111,14 +114,11 @@ export default function UserManagement() {
         if (!deleteId) return;
 
         try {
-            const res = await axiosJWT.delete(`${AppConfig.baseApiUrl}/users/${deleteId}`);
+            const res = await apiClient.delete(`/users/${deleteId}`);
             await GetUsers();
             setResponse(res.data);
-        } catch (error: any) {
-            setResponse(error.response?.data || {
-                status: 'error',
-                message: 'Failed to delete user'
-            });
+        } catch (error: unknown) {
+            setResponse(getErrorData<ApiResponse>(error, { success: false, message: 'Failed to delete user' }));
         }
         setDeleteId(null);
     };
@@ -133,20 +133,17 @@ export default function UserManagement() {
 
         try {
             setLoading(true);
-            const res = await axiosJWT.delete(`${AppConfig.baseApiUrl}/users/bulk-delete`, {
+            const res = await apiClient.delete(`/users/bulk-delete`, {
                 data: { userIds: selectedUsers }
             });
-            if (res.data.status === 'success') {
+            if (res.data.success) {
                 setSelectedUsers([]);
                 setBulkDeleteMode(false);
             }
             await GetUsers();
             setResponse(res.data);
-        } catch (error: any) {
-            setResponse(error.response?.data || {
-                status: 'error',
-                message: 'Failed to delete users'
-            });
+        } catch (error: unknown) {
+            setResponse(getErrorData<ApiResponse>(error, { success: false, message: 'Failed to delete users' }));
         }
         setLoading(false);
         setDeleteId(null);
@@ -217,12 +214,12 @@ export default function UserManagement() {
     const handleDownloadAllUserData = async () => {
         setIsDownloading(true)
         try {
-            const res = await axiosJWT.get<{ data: User[] }>(`${AppConfig.baseApiUrl}/all-users`);
+            const res = await apiClient.get<{ data: User[] }>(`/all-users`);
             const data = res.data.data.map((user) => ({
                 name: user.name,
                 email: user.email,
                 role: user.role.name,
-                permissions: user.role.permissions.map((p: any) => p.name).join(', '),
+                permissions: user.role.permissions.map((p) => p.name).join(', '),
                 is_blocked: user.is_blocked,
                 last_password_change: user.last_password_change,
                 updated_by: user.updater ? user.updater.name : null,
@@ -384,7 +381,7 @@ export default function UserManagement() {
                 </div>
 
                 {response && (
-                    <div className={`p-3 rounded-lg backdrop-blur-sm transition-all duration-300 text-sm ${response.status === 'success'
+                    <div className={`p-3 rounded-lg backdrop-blur-sm transition-all duration-300 text-sm ${response.success
                         ? 'bg-green-500/10 text-green-700 border border-green-200/50'
                         : 'bg-red-500/10 text-red-700 border border-red-200/50'
                         }`}>
@@ -401,7 +398,7 @@ export default function UserManagement() {
                         label: 'Name',
                         sortable: true,
                         minWidth: '150px',
-                        render: (value: any, item: any) => (
+                        render: (value: string, item: UserRecord) => (
                             <div className="flex flex-col gap-1">
                                 <div className="flex items-center gap-2">
                                     <span className="font-medium text-gray-800 dark:text-neutral-200 text-xs truncate">
@@ -425,7 +422,7 @@ export default function UserManagement() {
                         sortable: true,
                         minWidth: '200px',
                         hideOnMobile: true,
-                        render: (value: any) => (
+                        render: (value: string) => (
                             <span className="text-xs text-gray-700 dark:text-neutral-300 truncate">
                                 {value}
                             </span>
@@ -437,7 +434,7 @@ export default function UserManagement() {
                         sortable: true,
                         width: '64px',
                         align: 'center',
-                        render: (value: any) => value ? (
+                        render: (value: string | null) => value ? (
                             <div className="flex items-center justify-center gap-1 text-green-600 dark:text-green-400">
                                 <TbShieldCheck className="w-4 h-4" />
                                 <span className="hidden sm:inline text-xs">Connected</span>
@@ -455,7 +452,7 @@ export default function UserManagement() {
                         sortable: true,
                         width: '80px',
                         align: 'center',
-                        render: (value: any, item: any) => (
+                        render: (value: string, item: UserRecord) => (
                             <div className='flex flex-col items-center gap-1'>
                                 <span className={`px-2 py-0.5 rounded-full text-xs w-fit ${value
                                     ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
@@ -474,7 +471,7 @@ export default function UserManagement() {
                         label: 'Role',
                         sortable: true,
                         width: '80px',
-                        render: (value: any) => (
+                        render: (value: Role | null) => (
                             <span className="text-xs text-gray-700 dark:text-neutral-300">
                                 {value?.name || '-'}
                             </span>
@@ -485,7 +482,7 @@ export default function UserManagement() {
                         label: 'Password',
                         sortable: true,
                         width: '112px',
-                        render: (value: any) => (
+                        render: (value: string | null) => (
                             <span className="text-xs text-gray-700 dark:text-neutral-300">
                                 {value ? new Date(value).toLocaleDateString() : 'Never'}
                             </span>
@@ -526,17 +523,17 @@ export default function UserManagement() {
                     {
                         key: 'edit',
                         icon: <TbEdit size={16} />,
-                        href: (item: any) => `/panel/users/${item.id}`,
+                        href: (item: UserRecord) => `/panel/users/${item.id}`,
                         title: 'Edit user',
                         hoverClassName: 'hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20'
                     },
                     {
                         key: 'delete',
                         icon: <TbTrash size={16} />,
-                        onClick: (item: any) => handleDelete(item.id),
-                        disabled: (item: any) => item.id === 1 || item.email === user?.email,
+                        onClick: (item: UserRecord) => handleDelete(item.id),
+                        disabled: (item: UserRecord) => item.id === 1 || item.email === user?.email,
                         hide: () => bulkDeleteMode,
-                        title: (item: any) => item.id === 1 || item.email === user?.email ? 'Cannot delete this user' : 'Delete user',
+                        title: (item: UserRecord) => item.id === 1 || item.email === user?.email ? 'Cannot delete this user' : 'Delete user',
                         hoverClassName: 'hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20'
                     }
                 ]}

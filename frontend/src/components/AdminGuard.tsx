@@ -3,7 +3,7 @@ import { useAppSelector } from '@/store/hooks';
 import { selectUserPermissions, selectUserRole } from '@/store/authSlice';
 import { getRequiredPermissionForPath, isValidPanelRoute } from '@/config/panelPermissions';
 import Forbidden from '@/components/Forbidden';
-import NotFound from '@/pages/[...all]';
+import NotFound from '@/components/NotFound';
 
 interface AdminGuardProps {
     children: React.ReactNode;

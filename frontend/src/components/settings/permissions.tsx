@@ -4,7 +4,7 @@ import { useAppSelector } from '@/store/hooks'
 import { TbLock, TbKey, TbUser, TbWorld, TbSettings, TbDatabase } from 'react-icons/tb'
 
 const PermissionsMenu = () => {
-    const { user }: any = useAppSelector(selectAuth);
+    const { user } = useAppSelector(selectAuth);
     return (
         <div className="space-y-6">
             {/* Role Info Card */}
@@ -28,7 +28,7 @@ const PermissionsMenu = () => {
 
                 {user?.role?.permissions && user.role.permissions.length > 0 ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                        {user.role.permissions.map((permission: any, index: number) => {
+                        {user.role.permissions.map((permission, index: number) => {
                             const getPermissionIcon = (name: string) => {
                                 const lowerName = name.toLowerCase();
                                 if (lowerName.includes('user')) return <TbUser className="w-4 h-4" />;

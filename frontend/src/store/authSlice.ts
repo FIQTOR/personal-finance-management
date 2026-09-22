@@ -1,15 +1,10 @@
 // store/authSlice.ts
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import type { PayloadAction } from "@reduxjs/toolkit";
-import axios from "axios";
 import { jwtDecode } from "jwt-decode";
 import type { RootState } from "./store";
-import axiosJWT from "@/utils/axiosJWT";
-import AppConfig from "@/config/AppConfig";
-
-interface User {
-    [key: string]: any;
-}
+import apiClient from "@/services/apiClient";
+import type { ApiResponse, DecodedToken, Permission, User } from "@/types";
 
 interface AuthState {
     user: User | null;
@@ -34,54 +29,53 @@ export const refreshToken = createAsyncThunk(
     "auth/refreshToken",
     async (_, { rejectWithValue }) => {
         try {
-            const res = await axios.get(`${AppConfig.baseApiUrl}/token`, {
-                withCredentials: true,
+            // The refresh-token cookie is sent automatically (withCredentials).
+            const res = await apiClient.get<ApiResponse<{ accessToken: string }>>(
+                "/token",
+                { skipAuthRefresh: true }
+            );
+
+            const accessToken = res.data.data.accessToken;
+            const decoded = jwtDecode<DecodedToken>(accessToken);
+
+            // The access token carries only { id, role }; fetch the full profile.
+            const permissionsRes = await apiClient.get<
+                ApiResponse<{ user: Omit<User, 'role'>; permissions: Permission[] }>
+            >("/get-auth-permissions", {
+                headers: { Authorization: `Bearer ${accessToken}` },
+                skipAuthRefresh: true,
             });
 
-            const decoded: any = jwtDecode(res.data.accessToken);
+            const { user, permissions } = permissionsRes.data.data;
 
-            const responsePermissions: any = await axios.get(
-                `${AppConfig.baseApiUrl}/get-auth-permissions`,
-                {
-                    withCredentials: true,
-                    headers: {
-                        Authorization: `Bearer ${res.data.accessToken}`
-                    }
-                }
-            );
             return {
                 user: {
-                    ...decoded,
-                    exp: undefined,
-                    iat: undefined,
-                    refreshToken: undefined,
+                    ...user,
                     role: {
                         name: decoded.role,
-                        permissions: responsePermissions.data.permissions
-                    }
-                },
-                accessToken: res.data.accessToken,
+                        permissions,
+                    },
+                } as User,
+                accessToken,
                 expire: decoded.exp,
-                blocked: decoded.is_blocked ?? false,
-                isVerified: decoded.is_verified,
+                blocked: (user as User).is_blocked ?? false,
             };
-        } catch (err: any) {
-            return rejectWithValue(err.response?.data || "Failed to refresh token");
+        } catch (err: unknown) {
+            const error = err as { response?: { data?: unknown } };
+            return rejectWithValue(error.response?.data || "Failed to refresh token");
         }
     }
 );
 
 export const signOut = createAsyncThunk(
     "auth/signOut",
-    async (accessToken: string | null, { rejectWithValue }) => {
+    async (_, { rejectWithValue }) => {
         try {
-            await axiosJWT.delete(`${AppConfig.baseApiUrl}/signout`, {
-                headers: { Authorization: `Bearer ${accessToken}` },
-                withCredentials: true,
-            });
+            await apiClient.delete("/signout");
             return true;
-        } catch (err: any) {
-            return rejectWithValue(err.response?.data || "Failed to sign out");
+        } catch (err: unknown) {
+            const error = err as { response?: { data?: unknown } };
+            return rejectWithValue(error.response?.data || "Failed to sign out");
         }
     }
 );
@@ -98,7 +92,7 @@ const authSlice = createSlice({
             state.accessToken = action.payload.accessToken;
             state.expire = action.payload.expire;
             state.blocked = action.payload.blocked;
-            state.isReady = true; // Langsung siap
+            state.isReady = true;
         },
     },
     extraReducers: (builder) => {
@@ -138,7 +132,7 @@ export const selectAuth = (state: RootState) => state.auth;
 export const selectUserPermissions = (state: RootState) => {
     const permissions = state.auth.user?.role?.permissions;
     if (!Array.isArray(permissions)) return new Set<string>();
-    return new Set<string>(permissions.map((p: any) => p.name));
+    return new Set<string>(permissions.map((p) => p.name));
 };
 export const selectUserRole = (state: RootState) => state.auth.user?.role?.name;
 export default authSlice.reducer;

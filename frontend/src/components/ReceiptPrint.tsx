@@ -1,7 +1,25 @@
 import React from 'react';
 
+interface ReceiptItem {
+    detail?: { title?: string; name?: string };
+    item_type?: string;
+    price?: number;
+    quantity?: number;
+}
+
+interface ReceiptTransaction {
+    created_at: string;
+    transaction_id?: string;
+    order_id?: string;
+    payment_status?: string;
+    payment_type?: string;
+    amount?: number;
+    user?: { name?: string; email?: string };
+    items?: ReceiptItem[];
+}
+
 interface ReceiptProps {
-    transaction: any;
+    transaction: ReceiptTransaction;
     formatCurrency: (amount: number) => string;
 }
 
@@ -58,10 +76,10 @@ export const ReceiptPrint = React.forwardRef<HTMLDivElement, ReceiptProps>(({ tr
                 <div>
                     <h4 className="text-[10px] font-black uppercase text-slate-400 mb-3 tracking-[0.2em]">Billed To</h4>
                     <p className="text-sm font-bold text-slate-800 leading-tight">
-                        {transaction.user.name || 'Valued Customer'}
+                        {transaction.user?.name || 'Valued Customer'}
                     </p>
                     <p className="text-xs text-slate-500 mt-1 italic">
-                        {transaction.user.email || 'No email provided'}
+                        {transaction.user?.email || 'No email provided'}
                     </p>
                 </div>
                 <div className="text-right">
@@ -87,7 +105,7 @@ export const ReceiptPrint = React.forwardRef<HTMLDivElement, ReceiptProps>(({ tr
                     </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                    {transaction.items?.map((item: any, idx: number) => (
+                    {transaction.items?.map((item: ReceiptItem, idx: number) => (
                         <tr key={idx} className="group">
                             <td className="py-6 px-2">
                                 <p className="font-black text-slate-800 uppercase tracking-tight leading-none mb-1">
@@ -99,7 +117,7 @@ export const ReceiptPrint = React.forwardRef<HTMLDivElement, ReceiptProps>(({ tr
                             </td>
                             <td className="py-6 text-center text-sm font-bold text-slate-600">01</td>
                             <td className="py-6 text-right pr-2 text-sm font-black text-slate-950">
-                                {formatCurrency(item.price || transaction.amount)}
+                                {formatCurrency(item.price ?? transaction.amount ?? 0)}
                             </td>
                         </tr>
                     ))}
@@ -120,7 +138,7 @@ export const ReceiptPrint = React.forwardRef<HTMLDivElement, ReceiptProps>(({ tr
                 <div className="w-full max-w-55 space-y-3">
                     <div className="flex justify-between text-xs">
                         <span className="font-bold text-slate-400 uppercase tracking-tighter">Subtotal</span>
-                        <span className="font-bold text-slate-700">{formatCurrency(transaction.amount)}</span>
+                        <span className="font-bold text-slate-700">{formatCurrency(transaction.amount ?? 0)}</span>
                     </div>
                     <div className="flex justify-between text-xs">
                         <span className="font-bold text-slate-400 uppercase tracking-tighter">Processing Fee</span>
@@ -129,7 +147,7 @@ export const ReceiptPrint = React.forwardRef<HTMLDivElement, ReceiptProps>(({ tr
                     <div className="flex justify-between items-center pt-4 border-t-2 border-slate-900">
                         <span className="text-xs font-black uppercase tracking-widest">Total Paid</span>
                         <span className="text-xl font-black text-slate-950">
-                            {formatCurrency(transaction.amount)}
+                            {formatCurrency(transaction.amount ?? 0)}
                         </span>
                     </div>
                 </div>

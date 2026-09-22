@@ -1,10 +1,9 @@
 
 import Loading from '@/components/Loading';
-import AppConfig from '@/config/AppConfig';
 import { selectAuth } from '@/store/authSlice';
 import { useAppSelector } from '@/store/hooks';
-import axiosJWT from '@/utils/axiosJWT';
-import { useEffect, useState } from 'react'
+import apiClient from '@/services/apiClient';
+import { useCallback, useEffect, useState } from 'react'
 import { TbActivity, TbCalendarTime, TbWorld, TbDeviceLaptop, TbFilter, TbSearch, TbCalendar, TbShield, TbUserCheck, TbLogin, TbLogout, TbArrowLeft } from 'react-icons/tb';
 import { useNavigate } from 'react-router-dom';
 
@@ -19,7 +18,7 @@ interface Activity {
 }
 
 const ActivitiesMenu = () => {
-    const { user }: any = useAppSelector(selectAuth);
+    const { user } = useAppSelector(selectAuth);
     const navigate = useNavigate();
     const [activities, setActivities] = useState<Activity[]>([]);
     const [isLoading, setLoading] = useState(true);
@@ -34,16 +33,7 @@ const ActivitiesMenu = () => {
     });
     const [showAll, setShowAll] = useState(false);
 
-    useEffect(() => {
-        if (!user) {
-            navigate('/signin');
-            return;
-        }
-
-        fetchActivities();
-    }, [user, showAll, pagination.page, dateRange]);
-
-    const fetchActivities = async () => {
+    const fetchActivities = useCallback(async () => {
         try {
             const params = new URLSearchParams({
                 page: pagination.page.toString(),
@@ -53,22 +43,30 @@ const ActivitiesMenu = () => {
                 showAll: showAll.toString()
             });
 
-            const response = await axiosJWT.get(
-                `${AppConfig.baseApiUrl}/activities?${params}`
+            const response = await apiClient.get(`/activities?${params}`
             );
 
-            setActivities(response.data.data);
+            setActivities(response.data.data.activities);
             setPagination({
-                total: response.data.pagination.total,
-                page: response.data.pagination.page,
-                pages: response.data.pagination.pages
+                total: response.data.data.pagination.total,
+                page: response.data.data.pagination.page,
+                pages: response.data.data.pagination.pages
             });
         } catch (error) {
             console.error('Failed to fetch activities:', error);
         } finally {
             setLoading(false);
         }
-    };
+    }, [pagination.page, dateRange, showAll]);
+
+    useEffect(() => {
+        if (!user) {
+            navigate('/signin');
+            return;
+        }
+
+        fetchActivities();
+    }, [user, navigate, fetchActivities]);
 
     if (isLoading) {
         return (
