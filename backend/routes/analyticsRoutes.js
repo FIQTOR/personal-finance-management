@@ -15,4 +15,11 @@ router.get(
     analyticsController.getDashboardAnalytics
 );
 
+router.get(
+    '/export-database',
+    VerifyToken,
+    checkPermission('manage_users'),
+    analyticsController.exportDatabase
+);
+
 module.exports = router;

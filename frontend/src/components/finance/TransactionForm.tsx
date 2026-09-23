@@ -3,6 +3,8 @@ import { X, PlusCircle, Save } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { createTransaction, updateTransaction } from '@/store/financeSlice';
 import type { Transaction, TransactionType } from '@/types/finance';
+import PanelSelect from '@/components/PanelSelect';
+import { useNotification } from '@/context/useNotification';
 
 interface TransactionFormProps {
   isOpen: boolean;
@@ -12,6 +14,7 @@ interface TransactionFormProps {
 
 export const TransactionForm: React.FC<TransactionFormProps> = ({ isOpen, onClose, initialData }) => {
   const dispatch = useAppDispatch();
+  const { notify } = useNotification();
   const { categories, defaultCurrency } = useAppSelector((state) => state.finance);
 
   const [type, setType] = useState<TransactionType>('expense');
@@ -54,12 +57,18 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ isOpen, onClos
       notes,
     };
 
-    if (initialData) {
-      await dispatch(updateTransaction({ id: initialData.id, data: payload }));
-    } else {
-      await dispatch(createTransaction(payload));
+    try {
+      if (initialData) {
+        await dispatch(updateTransaction({ id: initialData.id, data: payload })).unwrap();
+        notify('Transaction updated successfully', 'success');
+      } else {
+        await dispatch(createTransaction(payload)).unwrap();
+        notify('Transaction created successfully', 'success');
+      }
+      onClose();
+    } catch (error: unknown) {
+      notify(typeof error === 'string' ? error : 'Failed to save transaction', 'error');
     }
-    onClose();
   };
 
   const defaultCategories = type === 'income'
@@ -120,33 +129,31 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ isOpen, onClos
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 dark:text-neutral-400 mb-1">Currency</label>
-              <select
+              <PanelSelect
                 value={currency}
-                onChange={(e) => setCurrency(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl border border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-hidden"
-              >
-                <option value="USD">USD ($)</option>
-                <option value="IDR">IDR (Rp)</option>
-                <option value="EUR">EUR (€)</option>
-                <option value="GBP">GBP (£)</option>
-              </select>
+                onChange={(v) => setCurrency(v)}
+                compact
+                options={[
+                  { value: 'USD', label: 'USD ($)' },
+                  { value: 'IDR', label: 'IDR (Rp)' },
+                  { value: 'EUR', label: 'EUR (€)' },
+                  { value: 'GBP', label: 'GBP (£)' },
+                ]}
+              />
             </div>
           </div>
 
           <div>
             <label className="block text-xs font-medium text-gray-600 dark:text-neutral-400 mb-1">Category</label>
-            <select
+            <PanelSelect
               value={categoryId}
-              onChange={(e) => setCategoryId(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-hidden"
-            >
-              <option value="">Uncategorized</option>
-              {availableCategories.map((c) => (
-                <option key={c.id} value={c.id > 0 ? c.id : ''}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
+              onChange={(v) => setCategoryId(v)}
+              placeholder="Uncategorized"
+              options={[
+                { value: '', label: 'Uncategorized' },
+                ...availableCategories.map((c) => ({ value: c.id > 0 ? c.id : '', label: c.name })),
+              ]}
+            />
           </div>
 
           <div>
@@ -181,7 +188,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ isOpen, onClos
             </button>
             <button
               type="submit"
-              className="px-5 py-2.5 text-sm font-medium rounded-xl bg-blue-600 text-white hover:bg-blue-700 shadow-xs"
+              className="px-5 py-2.5 text-sm font-medium rounded-xl bg-blue-600/90 backdrop-blur-md border border-blue-400/40 text-white hover:bg-blue-500 shadow-lg shadow-blue-500/30 transition-all duration-300"
             >
               {initialData ? 'Save Changes' : 'Add Transaction'}
             </button>

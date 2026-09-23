@@ -1,10 +1,15 @@
 import { useEffect, useState, useCallback } from 'react'
-import { TbShieldCheck, TbEdit, TbTrash, TbPlus, TbX, TbLoader } from 'react-icons/tb'
-import Notification from '@/components/PanelNotification'
+import { TbShieldCheck, TbEdit, TbTrash, TbPlus, TbX, TbTrashOff, TbFileUpload, TbUpload } from 'react-icons/tb'
 import StaticDataTable from '@/components/StaticDataTable'
+import PanelCheckbox from '@/components/PanelCheckbox'
+import ExportMenu from '@/components/ExportMenu'
+import BulkInsertModal from '@/components/BulkInsertModal'
+import ImportModal from '@/components/ImportModal'
 import AppConfig from '@/config/AppConfig'
 import apiClient from '@/services/apiClient';
-import { getErrorData, getErrorMessage } from '@/utils/error';
+import { getErrorMessage } from '@/utils/error';
+import { useNotification } from '@/context/useNotification'
+import type { ExportColumn } from '@/utils/export'
 
 interface Role {
     id: number
@@ -22,11 +27,6 @@ interface CreatorUpdater {
     name: string
 }
 
-interface ApiResponse {
-    success: boolean
-    message: string
-}
-
 interface Permission {
     id: number
     name: string
@@ -34,6 +34,7 @@ interface Permission {
 }
 
 export default function RoleManagement() {
+    const { notify, confirm } = useNotification()
     const [roles, setRoles] = useState<Role[]>([])
     const [searchTerm, setSearchTerm] = useState('')
     const [orderBy, setOrderBy] = useState<keyof Role>('created_at')
@@ -42,10 +43,11 @@ export default function RoleManagement() {
     const [page, setPage] = useState(1)
     const [total, setTotal] = useState(0)
     const [loading, setLoading] = useState(true)
-    const [response, setResponse] = useState<ApiResponse | null>(null)
-    const [deleteId, setDeleteId] = useState<number | null>(null)
     const [selectedRoles, setSelectedRoles] = useState<number[]>([])
+    const [bulkDeleteMode, setBulkDeleteMode] = useState(false)
     const [fetchTime, setFetchTime] = useState<number | null>(null)
+    const [showBulk, setShowBulk] = useState(false)
+    const [showImport, setShowImport] = useState(false)
 
     // Modal state
     const [isModalOpen, setIsModalOpen] = useState(false)
@@ -142,10 +144,10 @@ export default function RoleManagement() {
         try {
             if (modalMode === 'add') {
                 const res = await apiClient.post(`/roles`, formData)
-                setResponse(res.data)
+                notify(res.data.message || 'Role created successfully', 'success')
             } else if (modalMode === 'edit' && editingRole) {
                 const res = await apiClient.put(`/roles/${editingRole.id}`, formData)
-                setResponse(res.data)
+                notify(res.data.message || 'Role updated successfully', 'success')
             }
             setIsModalOpen(false)
             GetRoles()
@@ -172,28 +174,46 @@ export default function RoleManagement() {
         }
     }
 
-    const handleDelete = async (id: number) => {
-        setDeleteId(id)
+    const handleDelete = (id: number) => {
+        confirm('Are you sure you want to delete this role? This action cannot be undone.', async () => {
+            try {
+                const res = await apiClient.delete(`/roles/${id}`)
+                await GetRoles()
+                notify(res.data.message || 'Role deleted successfully', 'success')
+            } catch (error: unknown) {
+                notify(getErrorMessage(error, 'Failed to delete role'), 'error')
+            }
+        }, { actions: [{ label: 'Delete', variant: 'danger', onClick: () => {} }, { label: 'Cancel', onClick: () => {} }] })
     }
 
-    const confirmDelete = async () => {
-        if (!deleteId) return
-
-        try {
-            const res = await apiClient.delete(`/roles/${deleteId}`)
-            await GetRoles()
-            setResponse(res.data)
-        } catch (error: unknown) {
-            setResponse(getErrorData<ApiResponse>(error, { success: false, message: 'Failed to delete role' }))
-        }
-        setDeleteId(null)
+    const handleBulkDelete = () => {
+        if (selectedRoles.length === 0) { notify('Please select at least one record', 'warning'); return }
+        confirm(`Are you sure you want to delete ${selectedRoles.length} roles? This action cannot be undone.`, async () => {
+            try {
+                const res = await apiClient.delete(`/roles/bulk-delete`, { data: { ids: selectedRoles } })
+                notify(res.data.message || `${selectedRoles.length} roles deleted`, 'success')
+                setSelectedRoles([]); setBulkDeleteMode(false); GetRoles()
+            } catch (error: unknown) {
+                notify(getErrorMessage(error, 'Failed to delete roles'), 'error')
+            }
+        }, { actions: [{ label: 'Delete All', variant: 'danger', onClick: () => {} }, { label: 'Cancel', onClick: () => {} }] })
     }
+
+    const exportColumns: ExportColumn<Role>[] = [
+        { key: 'id', header: 'ID' },
+        { key: 'name', header: 'Name' },
+        { key: 'description', header: 'Description' },
+        { key: 'permissions', header: 'Permissions', value: (r) => (r.permissions || []).map((p) => p.name).join(', ') },
+        { key: 'created_at', header: 'Created At' },
+    ]
 
     const toggleAllRolesSelection = () => {
-        if (selectedRoles.length === roles.filter(role => role.id !== 1 && role.id !== 2).length) {
+        const selectable = roles.filter(role => role.id !== 1 && role.id !== 2)
+        const allSelected = selectable.length > 0 && selectable.every(role => selectedRoles.includes(role.id))
+        if (allSelected) {
             setSelectedRoles([])
         } else {
-            setSelectedRoles(roles.filter(role => role.id !== 1 && role.id !== 2).map(role => role.id))
+            setSelectedRoles(selectable.map(role => role.id))
         }
     }
 
@@ -218,10 +238,33 @@ export default function RoleManagement() {
                         </div>
                     </div>
                     <div className="flex flex-wrap gap-2 sm:gap-4">
+                        <button type="button" onClick={() => setShowImport(true)}
+                            className="flex items-center gap-2 bg-indigo-600/90 backdrop-blur-md border border-indigo-400/40 text-white px-3 py-2 rounded-xl hover:bg-indigo-500 transition-all duration-300 shadow-lg text-sm">
+                            <TbFileUpload /><span className="hidden sm:inline">Import</span>
+                        </button>
+                        <button type="button" onClick={() => setShowBulk(true)}
+                            className="flex items-center gap-2 bg-blue-600/90 backdrop-blur-md border border-blue-400/40 text-white px-3 py-2 rounded-xl hover:bg-blue-500 transition-all duration-300 shadow-lg text-sm">
+                            <TbUpload /><span className="hidden sm:inline">Bulk Insert</span>
+                        </button>
+                        <ExportMenu rows={roles} columns={exportColumns} filename="roles" tableName="roles" />
+                        <button
+                            onClick={() => { setBulkDeleteMode(!bulkDeleteMode); setSelectedRoles([]); }}
+                            className={`flex items-center gap-2 px-3 py-2 rounded-xl transition-all duration-300 text-sm border font-medium ${bulkDeleteMode
+                                ? 'bg-red-500/20 text-red-700 border-red-200/50 dark:border-red-700/50'
+                                : 'bg-white/10 text-gray-700 dark:bg-neutral-800/20 dark:text-neutral-300 border-white/20 hover:bg-white/20 dark:hover:bg-neutral-800/30'}`}>
+                            {bulkDeleteMode ? <TbTrashOff className="w-4 h-4" /> : <TbTrash className="w-4 h-4" />}
+                            <span className="hidden sm:inline">Bulk Delete</span>
+                        </button>
+                        {bulkDeleteMode && (
+                            <button onClick={handleBulkDelete}
+                                className="flex items-center gap-2 bg-red-500 text-white px-3 py-2 rounded-xl hover:bg-red-600 transition-all duration-300 text-sm shadow-lg font-medium">
+                                <TbTrash className="w-4 h-4" /> Delete Selected ({selectedRoles.length})
+                            </button>
+                        )}
                         <button
                             type="button"
                             onClick={handleOpenAddModal}
-                            className="flex items-center gap-2 bg-white/10 dark:border-neutral-600 dark:bg-neutral-800/50 dark:text-neutral-200 backdrop-blur-sm border border-white/20 text-gray-700 px-3 py-2 rounded-lg hover:bg-white/20 transition-all duration-300 shadow-lg text-sm cursor-pointer"
+                            className="flex items-center gap-2 bg-white/50 dark:bg-neutral-800/50 backdrop-blur-sm border border-white/30 dark:border-neutral-600/30 text-gray-700 dark:text-neutral-200 px-3 py-2 rounded-xl hover:bg-white/60 dark:hover:bg-neutral-800/70 transition-all duration-300 shadow-lg text-sm cursor-pointer"
                         >
                             <TbPlus />
                             <span className="hidden sm:inline">Add Role</span>
@@ -234,13 +277,13 @@ export default function RoleManagement() {
                         <input
                             type="search"
                             placeholder="Search roles..."
-                            className="flex-1 px-3 py-2 rounded-lg bg-white/10 backdrop-blur-sm border border-white/20 dark:border-neutral-600 dark:bg-neutral-800/50 focus:outline-none focus:ring-2 focus:ring-purple-400 text-gray-700 dark:text-neutral-200 text-sm"
+                            className="flex-1 px-3 py-2 rounded-xl bg-white/10 backdrop-blur-sm border border-white/20 dark:border-neutral-600 dark:bg-neutral-800/50 focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700 dark:text-neutral-200 text-sm transition-all duration-300"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
                         <input
                             type="number"
-                            className="w-16 sm:w-20 px-2 sm:px-3 py-2 rounded-lg bg-white/10 backdrop-blur-sm border border-white/20 dark:border-neutral-600 dark:bg-neutral-800/50 focus:outline-none focus:ring-2 focus:ring-purple-400 text-gray-700 dark:text-neutral-200 text-sm"
+                            className="w-16 sm:w-20 px-2 sm:px-3 py-2 rounded-xl bg-white/10 backdrop-blur-sm border border-white/20 dark:border-neutral-600 dark:bg-neutral-800/50 focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700 dark:text-neutral-200 text-sm transition-all duration-300"
                             value={limit}
                             onChange={handleLimitChange}
                             min="1"
@@ -255,15 +298,6 @@ export default function RoleManagement() {
                         />
                     </div>
                 </div>
-
-                {response && (
-                    <div className={`p-3 rounded-lg backdrop-blur-sm transition-all duration-300 text-sm ${response.success
-                        ? 'bg-green-500/10 text-green-700 border border-green-200/50'
-                        : 'bg-red-500/10 text-red-700 border border-red-200/50'
-                        }`}>
-                        {response.message}
-                    </div>
-                )}
             </div>
 
             {/* Table Container */}
@@ -363,14 +397,22 @@ export default function RoleManagement() {
                             key: 'delete',
                             icon: <TbTrash size={16} />,
                             onClick: (role: Role) => handleDelete(role.id),
+                            hide: () => bulkDeleteMode,
+                            disabled: (role: Role) => role.id === 1 || role.id === 2,
                             title: 'Delete role',
                             hoverClassName: 'hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20'
                         }
                     ]}
+                    selectable={bulkDeleteMode}
+                    onSelectItem={(role: Role) => setSelectedRoles(prev => prev.includes(role.id) ? prev.filter(i => i !== role.id) : [...prev, role.id])}
                     selectedItems={roles.filter(role => selectedRoles.includes(role.id))}
                     onSelectAll={toggleAllRolesSelection}
                     isItemSelected={(role: Role) => selectedRoles.includes(role.id)}
-                    isAllSelected={selectedRoles.length === roles.filter(role => role.id !== 1).length}
+                    isAllSelected={(() => {
+                        const selectable = roles.filter(role => role.id !== 1 && role.id !== 2)
+                        return selectable.length > 0 && selectable.every(role => selectedRoles.includes(role.id))
+                    })()}
+                    disabledItems={(role: Role) => role.id === 1 || role.id === 2}
                     onSort={handleSort}
                     orderBy={orderBy}
                     order={order}
@@ -443,25 +485,15 @@ export default function RoleManagement() {
                                     Assign Permissions
                                 </label>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto p-2 bg-neutral-50 dark:bg-neutral-800/40 rounded-xl border border-neutral-200 dark:border-neutral-800">
-                                    {availablePermissions.map((perm) => {
-                                        const isChecked = formData.permissions.includes(perm.id)
-                                        return (
-                                            <button
-                                                type="button"
-                                                key={perm.id}
-                                                onClick={() => handlePermissionToggle(perm.id)}
-                                                className={`flex items-center justify-between p-2 rounded-lg border text-xs text-left transition-all cursor-pointer ${isChecked
-                                                    ? 'bg-purple-500/10 border-purple-500/40 text-purple-700 dark:text-purple-300 font-semibold'
-                                                    : 'bg-white dark:bg-neutral-900 border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 hover:border-neutral-300'
-                                                    }`}
-                                            >
-                                                <span className="truncate">{perm.name}</span>
-                                                <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center ${isChecked ? 'bg-purple-600 border-purple-600 text-white' : 'border-neutral-400'}`}>
-                                                    {isChecked && '✓'}
-                                                </span>
-                                            </button>
-                                        )
-                                    })}
+                                    {availablePermissions.map((perm) => (
+                                        <PanelCheckbox
+                                            key={perm.id}
+                                            checked={formData.permissions.includes(perm.id)}
+                                            onChange={() => handlePermissionToggle(perm.id)}
+                                            label={perm.name}
+                                            className="p-2 bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200 dark:border-neutral-700"
+                                        />
+                                    ))}
                                     {availablePermissions.length === 0 && (
                                         <p className="text-xs text-neutral-400 col-span-2 text-center py-2">No permissions found</p>
                                     )}
@@ -473,16 +505,16 @@ export default function RoleManagement() {
                                 <button
                                     type="button"
                                     onClick={() => setIsModalOpen(false)}
-                                    className="px-4 py-2 text-xs font-semibold text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-xl transition-colors"
+                                    className="px-4 py-2 text-xs font-semibold text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-xl transition-all duration-300"
                                 >
                                     Cancel
                                 </button>
                                 <button
                                     type="submit"
                                     disabled={modalLoading}
-                                    className="flex items-center gap-2 px-5 py-2 text-xs font-semibold text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50 rounded-xl transition-all shadow-md cursor-pointer"
+                                    className="flex items-center gap-2 px-5 py-2 text-xs font-semibold text-white bg-blue-600/90 backdrop-blur-md border border-blue-400/40 hover:bg-blue-500 disabled:opacity-50 rounded-xl shadow-lg shadow-blue-500/30 transition-all duration-300 cursor-pointer"
                                 >
-                                    {modalLoading && <TbLoader className="w-4 h-4 animate-spin" />}
+                                    {modalLoading && <span className="loader" style={{ width: 16, height: 16 }}></span>}
                                     {modalMode === 'add' ? 'Create Role' : 'Save Changes'}
                                 </button>
                             </div>
@@ -491,15 +523,12 @@ export default function RoleManagement() {
                 </div>
             )}
 
-            {/* Delete Confirmation */}
-            {deleteId && deleteId !== -1 && (
-                <Notification
-                    message="Are you sure you want to delete this role?"
-                    type="action"
-                    onConfirm={confirmDelete}
-                    onClose={() => setDeleteId(null)}
-                />
-            )}
+            <ImportModal isOpen={showImport} onClose={() => setShowImport(false)} resource="roles" title="Import Roles" onSuccess={GetRoles} />
+            <BulkInsertModal isOpen={showBulk} onClose={() => setShowBulk(false)} resource="roles" title="Bulk Insert Roles" onSuccess={GetRoles}
+                columns={[
+                    { key: 'name', label: 'Name', required: true, example: 'Manager' },
+                    { key: 'description', label: 'Description', required: true, example: 'Can manage reports' },
+                ]} />
         </div>
     )
 }

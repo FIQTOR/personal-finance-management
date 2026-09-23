@@ -50,6 +50,10 @@ class BudgetService {
     await budget.destroy();
     return true;
   }
+
+  async bulkDeleteBudgets(ids, userId) {
+    return await Budget.destroy({ where: { id: ids, user_id: userId } });
+  }
 }
 
 module.exports = new BudgetService();

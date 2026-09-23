@@ -11,6 +11,8 @@ const router = express.Router();
 router.use(VerifyToken, checkPermission('manage_roles'));
 
 router.get('/', permissionController.getPermissions);
+router.post('/bulk', permissionController.createBulkPermissions);
+router.delete('/bulk-delete', permissionController.bulkDeletePermissions);
 router.get('/:id', permissionController.getPermission);
 router.post('/', permissionController.createPermission);
 router.put('/:id', permissionController.updatePermission);

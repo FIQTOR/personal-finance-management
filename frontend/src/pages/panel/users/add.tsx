@@ -8,15 +8,14 @@ import type { Crop } from 'react-image-crop'
 import 'react-image-crop/dist/ReactCrop.css'
 import { useNavigate } from 'react-router-dom'
 import apiClient from '@/services/apiClient';
-import { getErrorData } from '@/utils/error';
-
-interface ApiResponse {
-    success: boolean;
-    message: string;
-}
+import PanelSelect from '@/components/PanelSelect'
+import PanelCheckbox from '@/components/PanelCheckbox'
+import { useNotification } from '@/context/useNotification'
+import { getErrorMessage } from '@/utils/error'
 
 export default function AddUserPage() {
     const navigate = useNavigate();
+    const { notify } = useNotification();
     const [roles, setRoles] = useState<Array<{ id: number; name: string }>>([]);
     const [formData, setFormData] = useState({
         name: '',
@@ -29,7 +28,6 @@ export default function AddUserPage() {
     const [previewImage, setPreviewImage] = useState<string | null>(null);
     const [isLoading, setLoading] = useState(false);
     const [uploadError, setUploadError] = useState<string | null>(null);
-    const [response, setResponse] = useState<ApiResponse | null>(null);
     const [showCropModal, setShowCropModal] = useState(false);
     const [crop, setCrop] = useState<Crop>({
         unit: '%',
@@ -121,7 +119,7 @@ export default function AddUserPage() {
                 setFormData(prev => ({ ...prev, roleId: resRole.data.data.roles[0].id }));
             }
         } catch (error) {
-            console.log(error);
+            notify(getErrorMessage(error, 'Failed to load roles'), 'error');
         }
     }
 
@@ -157,27 +155,21 @@ export default function AddUserPage() {
                 }
             );
 
-            setResponse(res.data);
-            if (res.data.success) {
-                setTimeout(() => {
-                    navigate('/panel/users');
-                }, 2000);
-            }
+            notify(res.data.message || 'User created successfully', 'success');
+            setTimeout(() => {
+                navigate('/panel/users');
+            }, 1200);
         } catch (error: unknown) {
-            setResponse(getErrorData<ApiResponse>(error, { success: false, message: 'Failed to create user' }));
+            notify(getErrorMessage(error, 'Failed to create user'), 'error');
         } finally {
             setLoading(false);
         }
     };
 
     return (
-        <div className="min-h-screen p-8 relative">
-            {/* Gradient Bubbles */}
-            <div className='absolute w-125 h-125 bg-linear-to-r from-blue-400 to-purple-500 rounded-full blur-3xl opacity-20 -top-60 -left-20 animate-pulse'></div>
-            <div className='absolute w-100 h-100 bg-linear-to-r from-pink-400 to-orange-500 rounded-full blur-3xl opacity-20 bottom-0 right-0 animate-pulse delay-700'></div>
-
-            <div className="max-w-6xl mx-auto">
-                <h1 className="text-3xl font-bold mb-8 bg-linear-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">Add New User</h1>
+        <div className="p-4 sm:p-6 lg:p-8 relative h-full">
+            <div className="w-full">
+                <h1 className="text-2xl sm:text-3xl font-bold mb-8 bg-linear-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">Add New User</h1>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     {/* Left Column - Profile Picture */}
@@ -228,11 +220,6 @@ export default function AddUserPage() {
                             </div>
 
                             {uploadError && <p className="text-red-400 dark:text-red-400 mt-4 text-center">{uploadError}</p>}
-                            {response && response.message &&
-                                <p className={`mt-4 text-center ${response.success ? 'text-green-400 dark:text-green-400' : 'text-red-400 dark:text-red-400'}`}>
-                                    {response.message}
-                                </p>
-                            }
                         </div>
                     </div>
 
@@ -288,18 +275,12 @@ export default function AddUserPage() {
                                             <TbShieldCheck className="text-blue-600" />
                                             Role
                                         </label>
-                                        <select
-                                            required
+                                        <PanelSelect
                                             value={formData.roleId}
-                                            onChange={(e) => setFormData({ ...formData, roleId: e.target.value })}
-                                            className="w-full px-4 py-2 rounded-lg border border-black/50 dark:border-neutral-600 focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm bg-white/50 dark:bg-neutral-800/50 text-gray-900 dark:text-neutral-200 transition"
-                                        >
-                                            {roles.map(role => (
-                                                <option key={role.id} value={role.id}>
-                                                    {role.name}
-                                                </option>
-                                            ))}
-                                        </select>
+                                            onChange={(v) => setFormData({ ...formData, roleId: v })}
+                                            placeholder="Select role"
+                                            options={roles.map(role => ({ value: role.id, label: role.name }))}
+                                        />
                                     </div>
 
                                     <div className="relative group">
@@ -307,20 +288,12 @@ export default function AddUserPage() {
                                             <TbLock className="text-blue-600" />
                                             Account Status
                                         </label>
-                                        <div className="flex items-center gap-4">
-                                            <label className="inline-flex items-center cursor-pointer">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={formData.isBlocked}
-                                                    onChange={(e) => setFormData({ ...formData, isBlocked: e.target.checked })}
-                                                    className="sr-only peer"
-                                                />
-                                                <div className="relative w-11 h-6 bg-gray-200 dark:bg-neutral-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-500 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600 dark:peer-checked:bg-red-700"></div>
-                                                <span className="ms-3 text-sm font-medium text-gray-700 dark:text-neutral-300">
-                                                    {formData.isBlocked ? 'Blocked' : 'Active'}
-                                                </span>
-                                            </label>
-                                        </div>
+                                        <PanelCheckbox
+                                            checked={formData.isBlocked}
+                                            onChange={(checked) => setFormData({ ...formData, isBlocked: checked })}
+                                            label={formData.isBlocked ? 'Blocked' : 'Active'}
+                                            activeColor="red"
+                                        />
                                     </div>
 
                                     <div className="relative group">
@@ -328,40 +301,32 @@ export default function AddUserPage() {
                                             <TbCheck className="text-blue-600" />
                                             Email Verification
                                         </label>
-                                        <div className="flex items-center gap-4">
-                                            <label className="inline-flex items-center cursor-pointer">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={formData.isVerified}
-                                                    onChange={(e) => setFormData({ ...formData, isVerified: e.target.checked })}
-                                                    className="sr-only peer"
-                                                />
-                                                <div className="relative w-11 h-6 bg-gray-200 dark:bg-neutral-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-500 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600 dark:peer-checked:bg-green-700"></div>
-                                                <span className="ms-3 text-sm font-medium text-gray-700 dark:text-neutral-300">
-                                                    {formData.isVerified ? 'Verified' : 'Not Verified'}
-                                                </span>
-                                            </label>
-                                        </div>
+                                        <PanelCheckbox
+                                            checked={formData.isVerified}
+                                            onChange={(checked) => setFormData({ ...formData, isVerified: checked })}
+                                            label={formData.isVerified ? 'Verified' : 'Not Verified'}
+                                            activeColor="green"
+                                        />
                                     </div>
                                 </div>
-                                {(!response || (response && !response.success)) && <div className="flex gap-4">
-                                    <button
-                                        type="submit"
-                                        disabled={isLoading}
-                                        className="flex items-center gap-2 px-6 py-3 text-white bg-linear-to-r from-purple-500 to-pink-500 rounded-xl hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-purple-500/50 disabled:opacity-50 transition-all shadow-lg hover:shadow-purple-500/25"
-                                    >
-                                        <TbPlus className="w-5 h-5" />
-                                        {isLoading ? 'Creating...' : 'Create Role'}
-                                    </button>
+                                <div className="flex flex-col-reverse sm:flex-row gap-4">
                                     <button
                                         type="button"
                                         onClick={() => navigate(-1)}
-                                        className="flex items-center gap-2 px-6 py-3 text-gray-700 dark:text-neutral-300 bg-white/50 dark:bg-neutral-800/50 backdrop-blur-sm rounded-xl hover:bg-white/60 dark:hover:bg-neutral-800/70 focus:outline-none focus:ring-2 focus:ring-gray-500/30 transition-all border border-white/30 dark:border-neutral-600/30"
+                                        className="flex items-center justify-center gap-2 px-6 py-3 text-gray-700 dark:text-neutral-300 bg-white/50 dark:bg-neutral-800/50 backdrop-blur-sm rounded-xl hover:bg-white/60 dark:hover:bg-neutral-800/70 focus:outline-none focus:ring-2 focus:ring-gray-500/30 transition-all duration-300 border border-white/30 dark:border-neutral-600/30"
                                     >
                                         <TbArrowLeft className="w-5 h-5" />
                                         Cancel
                                     </button>
-                                </div>}
+                                    <button
+                                        type="submit"
+                                        disabled={isLoading}
+                                        className="flex items-center justify-center gap-2 px-6 py-3 text-white bg-blue-600/90 backdrop-blur-md border border-blue-400/40 rounded-xl hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-lg shadow-blue-500/30"
+                                    >
+                                        {isLoading ? <span className="loader" style={{ width: 18, height: 18 }}></span> : <TbPlus className="w-5 h-5" />}
+                                        {isLoading ? 'Creating...' : 'Create User'}
+                                    </button>
+                                </div>
                             </form>
                         </div>
                     </div>
@@ -401,9 +366,9 @@ export default function AddUserPage() {
                                 Cancel
                             </button>
                             <button
-                                type="submit"
+                                type="button"
                                 onClick={handleCropComplete}
-                                className="flex items-center gap-2 px-6 py-3 text-white bg-linear-to-r from-purple-500 to-pink-500 rounded-xl hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-purple-500/50 disabled:opacity-50 transition-all shadow-lg hover:shadow-purple-500/25"
+                                className="flex items-center gap-2 px-6 py-3 text-white bg-blue-600/90 backdrop-blur-md border border-blue-400/40 rounded-xl hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-lg shadow-blue-500/30"
                             >
                                 <TbCheck className="w-5 h-5" />
                                 Apply

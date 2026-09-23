@@ -81,8 +81,8 @@ const MyActivity = () => {
     }, [getUser, fetchActivities]);
 
     if (isLoading) return (
-        <div className="p-4 sm:p-6 relative min-h-screen animate-pulse">
-            <div className="max-w-6xl mx-auto relative">
+        <div className="p-4 sm:p-6 relative h-full animate-pulse">
+            <div className="w-full relative">
                 <div className="h-9 w-64 rounded-lg bg-neutral-200 dark:bg-neutral-800 mb-6 sm:mb-8" />
                 <div className="backdrop-blur-xl bg-white/70 dark:bg-neutral-800/70 p-4 sm:p-6 rounded-2xl shadow-lg border border-white/50 dark:border-neutral-700/50 mb-6">
                     <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
@@ -131,7 +131,7 @@ const MyActivity = () => {
     if (!user) return <NotFound />
 
     return (
-        <div className="p-4 sm:p-6 relative min-h-screen">
+        <div className="p-4 sm:p-6 relative h-full">
             {/* Decorative bubbles */}
             <div className="fixed inset-0 overflow-hidden pointer-events-none">
                 <div className="absolute -top-32 -left-32 w-64 h-64 bg-linear-to-r from-blue-400/30 to-purple-400/30 dark:from-blue-900/20 dark:to-purple-900/20 rounded-full blur-3xl"></div>
@@ -139,7 +139,7 @@ const MyActivity = () => {
                 <div className="absolute -bottom-32 left-1/3 w-72 h-72 bg-linear-to-r from-purple-400/20 to-blue-400/20 dark:from-purple-900/15 dark:to-blue-900/15 rounded-full blur-3xl"></div>
             </div>
 
-            <div className="max-w-6xl mx-auto relative">
+            <div className="w-full relative">
                 <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-6 sm:mb-8 bg-linear-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400 bg-clip-text text-transparent">
                     User Activities
                 </h1>

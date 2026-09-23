@@ -67,6 +67,10 @@ class TransactionService {
     return true;
   }
 
+  async bulkDeleteTransactions(ids, userId) {
+    return await Transaction.destroy({ where: { id: ids, user_id: userId } });
+  }
+
   async exportTransactionsToBuffer(userId, filters = {}) {
     const transactions = await this.getAllTransactions(userId, filters);
     

@@ -178,4 +178,75 @@ const deleteRole = asyncHandler(async (req, res) => {
     });
 });
 
-module.exports = { getRoles, getRole, createRole, updateRole, deleteRole };
+/** Bulk create roles. */
+const createBulkRoles = asyncHandler(async (req, res) => {
+    const { items } = req.body;
+
+    if (!Array.isArray(items) || items.length === 0) {
+        throw new AppError('No items provided for bulk insert', 400, { code: 'MISSING_FIELDS' });
+    }
+
+    const created = [];
+    const errors = [];
+
+    for (let i = 0; i < items.length; i++) {
+        const row = items[i] || {};
+        try {
+            if (!row.name) throw new Error('Name is required');
+            if (!row.description) throw new Error('Description is required');
+
+            const existingRole = await Role.findOne({ where: { name: row.name } });
+            if (existingRole) throw new Error('Role name already exists');
+
+            const role = await Role.create({ name: row.name, description: row.description, created_by: req.user.id });
+            created.push(role);
+        } catch (err) {
+            errors.push({ row: i + 1, name: row.name || '-', message: err.message || 'Failed to create role' });
+        }
+    }
+
+    await activityService.logActivity(req, {
+        userId: req.user.id,
+        activityType: 'created_roles',
+        description: `Bulk created ${created.length} roles`,
+        isGeneral: false,
+    });
+
+    return success(res, {
+        statusCode: 201,
+        message: `Bulk insert finished: ${created.length} created, ${errors.length} failed`,
+        data: { createdCount: created.length, failedCount: errors.length, created, errors },
+    });
+});
+
+/** Bulk delete roles (reassigning users to the default role). */
+const bulkDeleteRoles = asyncHandler(async (req, res) => {
+    const { ids } = req.body;
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+        throw new AppError('IDs array is required and cannot be empty', 400, { code: 'MISSING_FIELDS' });
+    }
+
+    const deletableIds = ids.map(Number).filter((id) => id !== DEFAULT_ROLE_ID);
+    if (deletableIds.length === 0) {
+        throw new AppError('Cannot delete the default role', 400, { code: 'PROTECTED_ROLE' });
+    }
+
+    await User.update({ role_id: DEFAULT_ROLE_ID }, { where: { role_id: deletableIds } });
+    await RolePermission.destroy({ where: { role_id: deletableIds } });
+    const deletedCount = await Role.destroy({ where: { id: deletableIds } });
+
+    await activityService.logActivity(req, {
+        userId: req.user.id,
+        activityType: 'bulk_deleted_roles',
+        description: `Bulk deleted ${deletedCount} roles`,
+        isGeneral: false,
+    });
+
+    return success(res, {
+        message: `${deletedCount} roles deleted and associated users updated to default role`,
+        data: { deletedCount },
+    });
+});
+
+module.exports = { getRoles, getRole, createRole, createBulkRoles, updateRole, deleteRole, bulkDeleteRoles };

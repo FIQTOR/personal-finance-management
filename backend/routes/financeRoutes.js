@@ -21,13 +21,17 @@ const router = express.Router();
 
 // --- Categories -------------------------------------------------------------
 router.get('/categories', VerifyToken, categoryController.getCategories);
+router.post('/categories/bulk', VerifyToken, categoryController.createBulkCategories);
+router.delete('/categories/bulk-delete', VerifyToken, categoryController.bulkDeleteCategories);
 router.get('/categories/:id', VerifyToken, categoryController.getCategory);
 router.post('/categories', VerifyToken, validate(financeSchemas.category), categoryController.createCategory);
 router.put('/categories/:id', VerifyToken, validate(financeSchemas.category), categoryController.updateCategory);
 router.delete('/categories/:id', VerifyToken, categoryController.deleteCategory);
 
-// --- Transactions (export registered BEFORE :id) ----------------------------
+// --- Transactions (export / bulk registered BEFORE :id) ---------------------
 router.get('/transactions/export', VerifyToken, transactionController.exportTransactions);
+router.post('/transactions/bulk', VerifyToken, transactionController.createBulkTransactions);
+router.delete('/transactions/bulk-delete', VerifyToken, transactionController.bulkDeleteTransactions);
 router.get('/transactions', VerifyToken, transactionController.getTransactions);
 router.get('/transactions/:id', VerifyToken, transactionController.getTransaction);
 router.post('/transactions', VerifyToken, validate(financeSchemas.transaction), transactionController.createTransaction);
@@ -36,6 +40,8 @@ router.delete('/transactions/:id', VerifyToken, transactionController.deleteTran
 
 // --- Budgets ----------------------------------------------------------------
 router.get('/budgets', VerifyToken, budgetController.getBudgets);
+router.post('/budgets/bulk', VerifyToken, budgetController.createBulkBudgets);
+router.delete('/budgets/bulk-delete', VerifyToken, budgetController.bulkDeleteBudgets);
 router.get('/budgets/:id', VerifyToken, budgetController.getBudget);
 router.post('/budgets', VerifyToken, validate(financeSchemas.budget), budgetController.createBudget);
 router.put('/budgets/:id', VerifyToken, validate(financeSchemas.budget), budgetController.updateBudget);
@@ -43,6 +49,8 @@ router.delete('/budgets/:id', VerifyToken, budgetController.deleteBudget);
 
 // --- Goals ------------------------------------------------------------------
 router.get('/goals', VerifyToken, goalController.getGoals);
+router.post('/goals/bulk', VerifyToken, goalController.createBulkGoals);
+router.delete('/goals/bulk-delete', VerifyToken, goalController.bulkDeleteGoals);
 router.get('/goals/:id', VerifyToken, goalController.getGoal);
 router.post('/goals', VerifyToken, validate(financeSchemas.goal), goalController.createGoal);
 router.put('/goals/:id', VerifyToken, validate(financeSchemas.goal), goalController.updateGoal);

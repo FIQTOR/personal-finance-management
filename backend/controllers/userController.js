@@ -231,6 +231,61 @@ const createUser = asyncHandler(async (req, res) => {
 });
 
 /**
+ * Bulk create users (admin action).
+ */
+const createBulkUsers = asyncHandler(async (req, res) => {
+    const { items } = req.body;
+
+    if (!Array.isArray(items) || items.length === 0) {
+        throw new AppError('No items provided for bulk insert', 400, { code: 'MISSING_FIELDS' });
+    }
+
+    const created = [];
+    const errors = [];
+
+    for (let i = 0; i < items.length; i++) {
+        const row = items[i] || {};
+        try {
+            const { name, email, password, isVerified, roleId } = row;
+            if (!name) throw new Error('Name is required');
+            if (!email) throw new Error('Email is required');
+            if (!password) throw new Error('Password is required');
+
+            const existingUser = await User.findOne({ where: { email } });
+            if (existingUser) throw new Error('Email already exists');
+
+            const role = roleId ? await Role.findByPk(roleId) : await Role.findOne();
+            if (!role) throw new Error('Role not found');
+
+            const user = await User.create({
+                name,
+                email,
+                role_id: role.id,
+                is_verified: isVerified === true || isVerified === 'true',
+                password: await hashPassword(password),
+                created_by: req.user.id,
+            });
+            created.push(user);
+        } catch (err) {
+            errors.push({ row: i + 1, name: row.name || row.email || '-', message: err.message || 'Failed to create user' });
+        }
+    }
+
+    await activityService.logActivity(req, {
+        userId: req.user.id,
+        activityType: 'created_users',
+        description: `Bulk created ${created.length} users`,
+        isGeneral: false,
+    });
+
+    return success(res, {
+        statusCode: 201,
+        message: `Bulk insert finished: ${created.length} created, ${errors.length} failed`,
+        data: { createdCount: created.length, failedCount: errors.length, created, errors },
+    });
+});
+
+/**
  * Update a user (admin action).
  */
 const updateUser = asyncHandler(async (req, res) => {
@@ -451,6 +506,7 @@ module.exports = {
     getUsers,
     getUser,
     createUser,
+    createBulkUsers,
     updateUser,
     deleteUser,
     bulkDeleteUsers,

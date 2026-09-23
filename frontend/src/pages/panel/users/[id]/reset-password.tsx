@@ -55,13 +55,9 @@ export default function ResetPasswordPage() {
     };
 
     return (
-        <div className="min-h-screen p-8 relative">
-            {/* Gradient Bubbles */}
-            <div className='absolute w-125 h-125 bg-linear-to-r from-blue-400 to-purple-500 rounded-full blur-3xl opacity-20 -top-60 -left-20 animate-pulse'></div>
-            <div className='absolute w-100 h-100 bg-linear-to-r from-pink-400 to-orange-500 rounded-full blur-3xl opacity-20 bottom-0 right-0 animate-pulse delay-700'></div>
-
-            <div className="max-w-2xl mx-auto">
-                <h1 className="text-3xl font-bold mb-8 bg-linear-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+        <div className="p-4 sm:p-6 lg:p-8 relative h-full">
+            <div className="w-full">
+                <h1 className="text-2xl sm:text-3xl font-bold mb-8 bg-linear-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
                     Reset User Password
                 </h1>
 
@@ -113,15 +109,15 @@ export default function ResetPasswordPage() {
                                     <button
                                         type="submit"
                                         disabled={isLoading}
-                                        className="flex items-center gap-2 px-6 py-3 text-white bg-linear-to-r from-purple-500 to-pink-500 rounded-xl hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-purple-500/50 disabled:opacity-50 transition-all shadow-lg hover:shadow-purple-500/25"
+                                        className="flex items-center justify-center gap-2 px-6 py-3 text-white bg-blue-600/90 backdrop-blur-md border border-blue-400/40 rounded-xl hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-lg shadow-blue-500/30"
                                     >
-                                        <TbCheck className="w-5 h-5" />
+                                        {isLoading ? <span className="loader" style={{ width: 18, height: 18 }}></span> : <TbCheck className="w-5 h-5" />}
                                         {isLoading ? 'Resetting...' : 'Reset Password'}
                                     </button>
                                     <button
                                         type="button"
                                         onClick={() => navigate(-1)}
-                                        className="flex items-center gap-2 px-6 py-3 text-gray-700 bg-white/50 backdrop-blur-sm rounded-xl hover:bg-white/60 focus:outline-none focus:ring-2 focus:ring-gray-500/30 transition-all border border-white/30"
+                                        className="flex items-center justify-center gap-2 px-6 py-3 text-gray-700 dark:text-neutral-300 bg-white/50 dark:bg-neutral-800/50 backdrop-blur-sm rounded-xl hover:bg-white/60 dark:hover:bg-neutral-800/70 focus:outline-none focus:ring-2 focus:ring-gray-500/30 transition-all duration-300 border border-white/30 dark:border-neutral-600/30"
                                     >
                                         <TbArrowLeft className="w-5 h-5" />
                                         Cancel

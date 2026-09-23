@@ -66,6 +66,10 @@ class CategoryService {
     await category.destroy();
     return true;
   }
+
+  async bulkDeleteCategories(ids, userId) {
+    return await Category.destroy({ where: { id: ids, user_id: userId } });
+  }
 }
 
 module.exports = new CategoryService();

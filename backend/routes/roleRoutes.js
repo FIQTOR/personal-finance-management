@@ -15,6 +15,8 @@ router.get('/', VerifyToken, checkPermission('view_dashboard'), roleController.g
 // Mutations require role management permission.
 router.use(VerifyToken, checkPermission('manage_roles'));
 
+router.post('/bulk', roleController.createBulkRoles);
+router.delete('/bulk-delete', roleController.bulkDeleteRoles);
 router.get('/:id', roleController.getRole);
 router.post('/', roleController.createRole);
 router.put('/:id', roleController.updateRole);

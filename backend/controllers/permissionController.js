@@ -141,4 +141,66 @@ const deletePermission = asyncHandler(async (req, res) => {
     return success(res, { message: 'Permission deleted successfully' });
 });
 
-module.exports = { getPermissions, getPermission, createPermission, updatePermission, deletePermission };
+/** Bulk create permissions. */
+const createBulkPermissions = asyncHandler(async (req, res) => {
+    const { items } = req.body;
+
+    if (!Array.isArray(items) || items.length === 0) {
+        throw new AppError('No items provided for bulk insert', 400, { code: 'MISSING_FIELDS' });
+    }
+
+    const created = [];
+    const errors = [];
+
+    for (let i = 0; i < items.length; i++) {
+        const row = items[i] || {};
+        try {
+            if (!row.name) throw new Error('Name is required');
+            const check = await Permission.findOne({ where: { name: row.name } });
+            if (check) throw new Error(`Permission with name '${row.name}' already exists`);
+            const permission = await Permission.create({ name: row.name, description: row.description, created_by: req.user.id });
+            created.push(permission);
+        } catch (err) {
+            errors.push({ row: i + 1, name: row.name || '-', message: err.message || 'Failed to create permission' });
+        }
+    }
+
+    await activityService.logActivity(req, {
+        userId: req.user.id,
+        activityType: 'created_permissions',
+        description: `Bulk created ${created.length} permissions`,
+        isGeneral: false,
+    });
+
+    return success(res, {
+        statusCode: 201,
+        message: `Bulk insert finished: ${created.length} created, ${errors.length} failed`,
+        data: { createdCount: created.length, failedCount: errors.length, created, errors },
+    });
+});
+
+/** Bulk delete permissions (and their role associations). */
+const bulkDeletePermissions = asyncHandler(async (req, res) => {
+    const { ids } = req.body;
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+        throw new AppError('IDs array is required and cannot be empty', 400, { code: 'MISSING_FIELDS' });
+    }
+
+    await RolePermission.destroy({ where: { permission_id: ids } });
+    const deletedCount = await Permission.destroy({ where: { id: ids } });
+
+    await activityService.logActivity(req, {
+        userId: req.user.id,
+        activityType: 'bulk_deleted_permissions',
+        description: `Bulk deleted ${deletedCount} permissions`,
+        isGeneral: false,
+    });
+
+    return success(res, {
+        message: `${deletedCount} permissions deleted`,
+        data: { deletedCount },
+    });
+});
+
+module.exports = { getPermissions, getPermission, createPermission, createBulkPermissions, updatePermission, deletePermission, bulkDeletePermissions };

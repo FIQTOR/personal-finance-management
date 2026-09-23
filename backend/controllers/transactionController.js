@@ -62,6 +62,43 @@ const deleteTransaction = asyncHandler(async (req, res) => {
   });
 });
 
+/** Bulk insert transactions from a parsed list. */
+const createBulkTransactions = asyncHandler(async (req, res) => {
+  const { items } = req.body;
+  if (!Array.isArray(items) || items.length === 0) {
+    throw new AppError('No items provided for bulk insert', 400);
+  }
+  const created = [];
+  const errors = [];
+  for (let i = 0; i < items.length; i++) {
+    const row = items[i] || {};
+    try {
+      const item = await transactionService.createTransaction(req.user.id, row);
+      created.push(item);
+    } catch (err) {
+      errors.push({ row: i + 1, name: row.notes || row.type || '-', message: err.message || 'Failed to create transaction' });
+    }
+  }
+  return success(res, {
+    statusCode: 201,
+    message: `Bulk insert finished: ${created.length} created, ${errors.length} failed`,
+    data: { createdCount: created.length, failedCount: errors.length, created, errors }
+  });
+});
+
+/** Bulk delete transactions owned by the authenticated user. */
+const bulkDeleteTransactions = asyncHandler(async (req, res) => {
+  const { ids } = req.body;
+  if (!Array.isArray(ids) || ids.length === 0) {
+    throw new AppError('IDs array is required', 400);
+  }
+  const deletedCount = await transactionService.bulkDeleteTransactions(ids, req.user.id);
+  return success(res, {
+    message: `${deletedCount} transactions deleted`,
+    data: { deletedCount }
+  });
+});
+
 /** Stream the authenticated user's filtered transactions as an .xlsx file. */
 const exportTransactions = asyncHandler(async (req, res) => {
   const buffer = await transactionService.exportTransactionsToBuffer(req.user.id, req.query);
@@ -74,7 +111,9 @@ module.exports = {
   getTransactions,
   getTransaction,
   createTransaction,
+  createBulkTransactions,
   updateTransaction,
   deleteTransaction,
+  bulkDeleteTransactions,
   exportTransactions
 };

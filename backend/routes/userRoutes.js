@@ -14,6 +14,7 @@ router.use(VerifyToken, checkPermission('manage_users'));
 
 router.post('/', userController.upload.single('avatar'), validate(userSchemas.create), userController.createUser);
 router.get('/', userController.getUsers);
+router.post('/bulk', userController.createBulkUsers);
 router.delete('/bulk-delete', userController.bulkDeleteUsers);
 router.get('/:id', userController.getUser);
 router.put('/:id', userController.upload.single('avatar'), validate(userSchemas.update), userController.updateUser);

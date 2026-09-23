@@ -1,10 +1,14 @@
 import { useCallback, useEffect, useState } from 'react'
-import { TbKey, TbEdit, TbTrash, TbPlus, TbX, TbLoader } from 'react-icons/tb'
-import Notification from '@/components/PanelNotification'
+import { TbKey, TbEdit, TbTrash, TbPlus, TbX, TbTrashOff, TbFileUpload, TbUpload } from 'react-icons/tb'
 import StaticDataTable from '@/components/StaticDataTable'
+import ExportMenu from '@/components/ExportMenu'
+import BulkInsertModal from '@/components/BulkInsertModal'
+import ImportModal from '@/components/ImportModal'
 import AppConfig from '@/config/AppConfig'
 import apiClient from '@/services/apiClient';
-import { getErrorData, getErrorMessage } from '@/utils/error';
+import { getErrorMessage } from '@/utils/error';
+import { useNotification } from '@/context/useNotification'
+import type { ExportColumn } from '@/utils/export'
 
 interface CreatorUpdater {
     id: number
@@ -21,16 +25,12 @@ interface Permission {
     updater: CreatorUpdater | null
 }
 
-interface ApiResponse {
-    success: boolean
-    message: string
-    data?: Permission[]
-    total?: number
-}
-
 export default function PermissionManagement() {
-    const [deleteId, setDeleteId] = useState<number | null>(null)
-    const [response, setResponse] = useState<ApiResponse | null>(null)
+    const { notify, confirm } = useNotification()
+    const [selectedIds, setSelectedIds] = useState<number[]>([])
+    const [bulkDeleteMode, setBulkDeleteMode] = useState(false)
+    const [showBulk, setShowBulk] = useState(false)
+    const [showImport, setShowImport] = useState(false)
 
     const [permissions, setPermissions] = useState<Permission[]>([])
     const [searchTerm, setSearchTerm] = useState('')
@@ -115,10 +115,10 @@ export default function PermissionManagement() {
         try {
             if (modalMode === 'add') {
                 const res = await apiClient.post(`/permissions`, formData)
-                setResponse(res.data)
+                notify(res.data.message || 'Permission created successfully', 'success')
             } else if (modalMode === 'edit' && editingPermission) {
                 const res = await apiClient.put(`/permissions/${editingPermission.id}`, formData)
-                setResponse(res.data)
+                notify(res.data.message || 'Permission updated successfully', 'success')
             }
             setIsModalOpen(false)
             GetPermissions()
@@ -145,29 +145,44 @@ export default function PermissionManagement() {
         }
     }
 
-    const handleDelete = async (id: number) => {
-        setDeleteId(id)
+    const handleDelete = (id: number) => {
+        confirm('Are you sure you want to delete this permission? This action cannot be undone.', async () => {
+            try {
+                const res = await apiClient.delete(`/permissions/${id}`)
+                notify(res.data.message || 'Permission deleted successfully', 'success')
+                GetPermissions()
+            } catch (error: unknown) {
+                notify(getErrorMessage(error, 'Failed to delete permission'), 'error')
+            }
+        }, { actions: [{ label: 'Delete', variant: 'danger', onClick: () => {} }, { label: 'Cancel', onClick: () => {} }] })
     }
 
-    const confirmDelete = async () => {
-        if (!deleteId) return
-
-        try {
-            const res = await apiClient.delete(`/permissions/${deleteId}`)
-            setResponse(res.data)
-            if (res.data.success) {
-                GetPermissions()
-                setTimeout(() => {
-                    setResponse(null)
-                }, 3000)
+    const handleBulkDelete = () => {
+        if (selectedIds.length === 0) { notify('Please select at least one record', 'warning'); return }
+        confirm(`Are you sure you want to delete ${selectedIds.length} permissions? This action cannot be undone.`, async () => {
+            try {
+                const res = await apiClient.delete(`/permissions/bulk-delete`, { data: { ids: selectedIds } })
+                notify(res.data.message || `${selectedIds.length} permissions deleted`, 'success')
+                setSelectedIds([]); setBulkDeleteMode(false); GetPermissions()
+            } catch (error: unknown) {
+                notify(getErrorMessage(error, 'Failed to delete permissions'), 'error')
             }
-        } catch (error: unknown) {
-            setResponse(getErrorData<ApiResponse>(error, { success: false, message: 'Failed to delete permission' }))
-            setTimeout(() => {
-                setResponse(null)
-            }, 3000)
+        }, { actions: [{ label: 'Delete All', variant: 'danger', onClick: () => {} }, { label: 'Cancel', onClick: () => {} }] })
+    }
+
+    const exportColumns: ExportColumn<Permission>[] = [
+        { key: 'id', header: 'ID' },
+        { key: 'name', header: 'Name' },
+        { key: 'description', header: 'Description' },
+        { key: 'created_at', header: 'Created At' },
+    ]
+
+    const toggleAllSelection = () => {
+        if (selectedIds.length === permissions.length && permissions.length > 0) {
+            setSelectedIds([])
+        } else {
+            setSelectedIds(permissions.map(p => p.id))
         }
-        setDeleteId(null)
     }
 
     return (
@@ -191,10 +206,33 @@ export default function PermissionManagement() {
                         </div>
                     </div>
                     <div className="flex flex-wrap gap-2 sm:gap-4">
+                        <button type="button" onClick={() => setShowImport(true)}
+                            className="flex items-center gap-2 bg-indigo-600/90 backdrop-blur-md border border-indigo-400/40 text-white px-3 py-2 rounded-xl hover:bg-indigo-500 transition-all duration-300 shadow-lg text-sm">
+                            <TbFileUpload /><span className="hidden sm:inline">Import</span>
+                        </button>
+                        <button type="button" onClick={() => setShowBulk(true)}
+                            className="flex items-center gap-2 bg-blue-600/90 backdrop-blur-md border border-blue-400/40 text-white px-3 py-2 rounded-xl hover:bg-blue-500 transition-all duration-300 shadow-lg text-sm">
+                            <TbUpload /><span className="hidden sm:inline">Bulk Insert</span>
+                        </button>
+                        <ExportMenu rows={permissions} columns={exportColumns} filename="permissions" tableName="permissions" />
+                        <button
+                            onClick={() => { setBulkDeleteMode(!bulkDeleteMode); setSelectedIds([]); }}
+                            className={`flex items-center gap-2 px-3 py-2 rounded-xl transition-all duration-300 text-sm border font-medium ${bulkDeleteMode
+                                ? 'bg-red-500/20 text-red-700 border-red-200/50 dark:border-red-700/50'
+                                : 'bg-white/10 text-gray-700 dark:bg-neutral-800/20 dark:text-neutral-300 border-white/20 hover:bg-white/20 dark:hover:bg-neutral-800/30'}`}>
+                            {bulkDeleteMode ? <TbTrashOff className="w-4 h-4" /> : <TbTrash className="w-4 h-4" />}
+                            <span className="hidden sm:inline">Bulk Delete</span>
+                        </button>
+                        {bulkDeleteMode && (
+                            <button onClick={handleBulkDelete}
+                                className="flex items-center gap-2 bg-red-500 text-white px-3 py-2 rounded-xl hover:bg-red-600 transition-all duration-300 text-sm shadow-lg font-medium">
+                                <TbTrash className="w-4 h-4" /> Delete Selected ({selectedIds.length})
+                            </button>
+                        )}
                         <button
                             type="button"
                             onClick={handleOpenAddModal}
-                            className="flex items-center gap-2 bg-white/10 dark:border-neutral-600 dark:bg-neutral-800/50 dark:text-neutral-200 backdrop-blur-sm border border-white/20 text-gray-700 px-3 py-2 rounded-lg hover:bg-white/20 transition-all duration-300 shadow-lg text-sm cursor-pointer"
+                            className="flex items-center gap-2 bg-white/50 dark:bg-neutral-800/50 backdrop-blur-sm border border-white/30 dark:border-neutral-600/30 text-gray-700 dark:text-neutral-200 px-3 py-2 rounded-xl hover:bg-white/60 dark:hover:bg-neutral-800/70 transition-all duration-300 shadow-lg text-sm cursor-pointer"
                         >
                             <TbPlus />
                             <span className="hidden sm:inline">Add Permission</span>
@@ -207,13 +245,13 @@ export default function PermissionManagement() {
                         <input
                             type="search"
                             placeholder="Search permissions..."
-                            className="flex-1 px-3 py-2 rounded-lg bg-white/10 backdrop-blur-sm border border-white/20 dark:border-neutral-600 dark:bg-neutral-800/50 focus:outline-none focus:ring-2 focus:ring-purple-400 text-gray-700 dark:text-neutral-200 text-sm"
+                            className="flex-1 px-3 py-2 rounded-xl bg-white/10 backdrop-blur-sm border border-white/20 dark:border-neutral-600 dark:bg-neutral-800/50 focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700 dark:text-neutral-200 text-sm transition-all duration-300"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
                         <input
                             type="number"
-                            className="w-16 sm:w-20 px-2 sm:px-3 py-2 rounded-lg bg-white/10 backdrop-blur-sm border border-white/20 dark:border-neutral-600 dark:bg-neutral-800/50 focus:outline-none focus:ring-2 focus:ring-purple-400 text-gray-700 dark:text-neutral-200 text-sm"
+                            className="w-16 sm:w-20 px-2 sm:px-3 py-2 rounded-xl bg-white/10 backdrop-blur-sm border border-white/20 dark:border-neutral-600 dark:bg-neutral-800/50 focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700 dark:text-neutral-200 text-sm transition-all duration-300"
                             value={limit}
                             onChange={handleLimitChange}
                             min="1"
@@ -228,15 +266,6 @@ export default function PermissionManagement() {
                         />
                     </div>
                 </div>
-
-                {response && (
-                    <div className={`p-3 rounded-lg backdrop-blur-sm transition-all duration-300 text-sm ${response.success
-                        ? 'bg-green-500/10 text-green-700 border border-green-200/50'
-                        : 'bg-red-500/10 text-red-700 border border-red-200/50'
-                        }`}>
-                        {response.message}
-                    </div>
-                )}
             </div>
 
             {/* Table Container */}
@@ -312,10 +341,16 @@ export default function PermissionManagement() {
                             key: 'delete',
                             icon: <TbTrash size={16} />,
                             onClick: (item: Permission) => handleDelete(item.id),
+                            hide: () => bulkDeleteMode,
                             title: 'Delete permission',
                             hoverClassName: 'hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20'
                         }
                     ]}
+                    selectable={bulkDeleteMode}
+                    onSelectItem={(item: Permission) => setSelectedIds(prev => prev.includes(item.id) ? prev.filter(i => i !== item.id) : [...prev, item.id])}
+                    onSelectAll={toggleAllSelection}
+                    isItemSelected={(item: Permission) => selectedIds.includes(item.id)}
+                    isAllSelected={permissions.length > 0 && permissions.every(p => selectedIds.includes(p.id))}
                     loading={loading}
                     emptyMessage="No permissions found"
                     onSort={handleSort}
@@ -340,7 +375,7 @@ export default function PermissionManagement() {
                         {/* Modal Header */}
                         <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-200 dark:border-neutral-800">
                             <h2 className="text-lg font-bold text-neutral-800 dark:text-neutral-100 flex items-center gap-2">
-                                <TbKey className="w-5 h-5 text-purple-600" />
+                                <TbKey className="w-5 h-5 text-blue-600" />
                                 {modalMode === 'add' ? 'Add New Permission' : 'Edit Permission'}
                             </h2>
                             <button
@@ -399,9 +434,9 @@ export default function PermissionManagement() {
                                 <button
                                     type="submit"
                                     disabled={modalLoading}
-                                    className="flex items-center gap-2 px-5 py-2 text-xs font-semibold text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50 rounded-xl transition-all shadow-md cursor-pointer"
+                                    className="flex items-center gap-2 px-5 py-2 text-xs font-semibold text-white bg-blue-600/90 backdrop-blur-md border border-blue-400/40 hover:bg-blue-500 disabled:opacity-50 rounded-xl shadow-lg shadow-blue-500/30 transition-all duration-300 cursor-pointer"
                                 >
-                                    {modalLoading && <TbLoader className="w-4 h-4 animate-spin" />}
+                                    {modalLoading && <span className="loader" style={{ width: 16, height: 16 }}></span>}
                                     {modalMode === 'add' ? 'Create Permission' : 'Save Changes'}
                                 </button>
                             </div>
@@ -410,15 +445,12 @@ export default function PermissionManagement() {
                 </div>
             )}
 
-            {/* Delete Confirmation */}
-            {deleteId && deleteId !== -1 && (
-                <Notification
-                    message="Are you sure you want to delete this permission?"
-                    type="action"
-                    onConfirm={confirmDelete}
-                    onClose={() => setDeleteId(null)}
-                />
-            )}
+            <ImportModal isOpen={showImport} onClose={() => setShowImport(false)} resource="permissions" title="Import Permissions" onSuccess={GetPermissions} />
+            <BulkInsertModal isOpen={showBulk} onClose={() => setShowBulk(false)} resource="permissions" title="Bulk Insert Permissions" onSuccess={GetPermissions}
+                columns={[
+                    { key: 'name', label: 'Name', required: true, example: 'manage_reports' },
+                    { key: 'description', label: 'Description', example: 'Can manage reports' },
+                ]} />
         </div>
     )
 }

@@ -2,14 +2,16 @@
 
 import { TbUser, TbMail, TbTrash, TbPencil, TbX, TbShieldCheck, TbLock, TbActivity, TbCheck, TbArrowLeft, TbUpload, TbKey } from 'react-icons/tb'
 import { useCallback, useEffect, useState } from 'react'
-import Notification from '@/components/PanelNotification';
 import AppConfig from '@/config/AppConfig'
 import { useRef } from 'react'
 import ReactCrop from 'react-image-crop'
 import type { Crop } from 'react-image-crop'
 import apiClient from '@/services/apiClient';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { getErrorData } from '@/utils/error';
+import PanelSelect from '@/components/PanelSelect';
+import PanelCheckbox from '@/components/PanelCheckbox';
+import { useNotification } from '@/context/useNotification';
+import { getErrorMessage } from '@/utils/error';
 
 interface EditableUser {
     id: number;
@@ -23,21 +25,15 @@ interface EditableUser {
     isVerified?: boolean;
 }
 
-interface ApiResponse {
-    success: boolean;
-    message: string;
-}
-
 export default function UserEditPage() {
     const navigate = useNavigate()
     const { id } = useParams()
+    const { notify, confirm } = useNotification()
     const [roles, setRoles] = useState<Array<{ id: number; name: string }>>([]);
     const [user_, setUser] = useState<EditableUser | null>(null)
-    const [response, setResponse] = useState<ApiResponse | null>(null);
     const [previewImage, setPreviewImage] = useState<string | null>(null);
     const [isLoading, setLoading] = useState(true);
     const [uploadError, setUploadError] = useState<string | null>(null);
-    const [deleteId, setDeleteId] = useState<number | null>(null);
 
     const [showCropModal, setShowCropModal] = useState(false);
     const [tempImage, setTempImage] = useState<string | null>(null);
@@ -128,9 +124,9 @@ export default function UserEditPage() {
             setUser(res.data.data.user);
             setLoading(false)
         } catch (error) {
-            console.error(error);
+            notify(getErrorMessage(error, 'Failed to load user'), 'error');
         }
-    }, [id])
+    }, [id, notify])
 
     useEffect(() => {
         document.title = `Edit User ${AppConfig.exTitle}`
@@ -138,8 +134,8 @@ export default function UserEditPage() {
     }, [getUser]);
 
     if (!user_) return (
-        <div className="p-4 sm:p-6 md:p-8 min-h-screen animate-pulse">
-            <div className="max-w-6xl mx-auto">
+        <div className="p-4 sm:p-6 md:p-8 h-full animate-pulse">
+            <div className="w-full">
                 <div className="h-8 w-64 rounded-lg bg-neutral-200 dark:bg-neutral-800 mb-6 sm:mb-8" />
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="md:col-span-1">
@@ -193,47 +189,37 @@ export default function UserEditPage() {
                 }
             );
 
-            setResponse(res.data);
-            if (res.data.success) {
-                setTimeout(() => {
-                    navigate('/panel/users');
-                }, 2000);
-            }
+            notify(res.data.message || 'User updated successfully', 'success');
+            setTimeout(() => {
+                navigate('/panel/users');
+            }, 1200);
         } catch (error: unknown) {
-            setResponse(getErrorData<ApiResponse>(error, { success: false, message: 'Failed to update user' }));
+            notify(getErrorMessage(error, 'Failed to update user'), 'error');
         } finally {
             setLoading(false);
         }
     };
     // Add handleDelete function
     const handleDelete = () => {
-        setDeleteId(user_.id);
-    };
-    const confirmDelete = async () => {
-        if (!deleteId) return;
-        setLoading(true);
-        try {
-            const res = await apiClient.delete(`/users/${deleteId}`);
-            setResponse(res.data);
-            if (res.data.success) {
+        if (!user_) return;
+        confirm('Are you sure you want to delete this user? This action cannot be undone.', async () => {
+            setLoading(true);
+            try {
+                const res = await apiClient.delete(`/users/${user_.id}`);
+                notify(res.data.message || 'User deleted successfully', 'success');
                 setTimeout(() => {
                     navigate('/panel/users');
-                }, 2000);
+                }, 1200);
+            } catch (error: unknown) {
+                notify(getErrorMessage(error, 'Failed to delete user'), 'error');
+            } finally {
+                setLoading(false);
             }
-        } catch (error: unknown) {
-            setResponse(getErrorData<ApiResponse>(error, { success: false, message: 'Failed to delete user' }));
-        } finally {
-            setLoading(false);
-            setDeleteId(null);
-        }
+        }, { actions: [{ label: 'Delete', variant: 'danger', onClick: () => {} }, { label: 'Cancel', onClick: () => {} }] });
     };
     return (
-        <div className="p-4 sm:p-6 md:p-8 relative min-h-screen">
-            {/* Gradient Bubbles */}
-            <div className='absolute w-75 h-75 sm:w-125 sm:h-125 bg-linear-to-r from-blue-400 to-purple-500 dark:from-blue-900/20 dark:to-purple-900/20 rounded-full blur-3xl opacity-20 -top-20 sm:-top-60 -left-10 sm:-left-20 animate-pulse'></div>
-            <div className='absolute w-62.5 h-62.5 sm:w-100 sm:h-100 bg-linear-to-r from-pink-400 to-orange-500 dark:from-pink-900/20 dark:to-orange-900/20 rounded-full blur-3xl opacity-20 bottom-0 right-0 animate-pulse delay-700'></div>
-
-            <div className="max-w-6xl mx-auto">
+        <div className="p-4 sm:p-6 md:p-8 relative h-full">
+            <div className="w-full">
                 <h1 className="text-2xl sm:text-3xl font-bold mb-6 sm:mb-8 bg-linear-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400 bg-clip-text text-transparent">Edit User Profile</h1>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -296,11 +282,6 @@ export default function UserEditPage() {
                             </div>
 
                             {uploadError && <p className="text-red-400 dark:text-red-300 mt-4 text-center">{uploadError}</p>}
-                            {response && response.message &&
-                                <p className={`mt-4 text-center ${response.success ? 'text-green-400 dark:text-green-300' : 'text-red-400 dark:text-red-300'}`}>
-                                    {response.message}
-                                </p>
-                            }
                         </div>
                     </div>
 
@@ -339,20 +320,12 @@ export default function UserEditPage() {
                                             <TbLock className="text-blue-600 dark:text-blue-400" />
                                             Account Status
                                         </label>
-                                        <div className="flex items-center gap-2">
-                                            <label className="inline-flex items-center cursor-pointer">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={user_.is_blocked}
-                                                    onChange={(e) => setUser({ ...user_, is_blocked: e.target.checked })}
-                                                    className="sr-only peer"
-                                                />
-                                                <div className="relative w-11 h-6 bg-gray-200 dark:bg-neutral-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-500/50 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600 dark:peer-checked:bg-red-700"></div>
-                                                <span className="ms-3 text-sm font-medium text-gray-700 dark:text-neutral-300">
-                                                    {user_.is_blocked ? 'Blocked' : 'Active'}
-                                                </span>
-                                            </label>
-                                        </div>
+                                        <PanelCheckbox
+                                            checked={user_.is_blocked}
+                                            onChange={(checked) => setUser({ ...user_, is_blocked: checked })}
+                                            label={user_.is_blocked ? 'Blocked' : 'Active'}
+                                            activeColor="red"
+                                        />
                                     </div>
 
                                     <div className="relative group">
@@ -360,20 +333,12 @@ export default function UserEditPage() {
                                             <TbCheck className="text-blue-600 dark:text-blue-400" />
                                             Email Verification
                                         </label>
-                                        <div className="flex items-center gap-4">
-                                            <label className="inline-flex items-center cursor-pointer">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={user_.is_verified}
-                                                    onChange={(e) => setUser({ ...user_, is_verified: e.target.checked })}
-                                                    className="sr-only peer"
-                                                />
-                                                <div className="relative w-11 h-6 bg-gray-200 dark:bg-neutral-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-500/50 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600 dark:peer-checked:bg-green-700"></div>
-                                                <span className="ms-3 text-sm font-medium text-gray-700 dark:text-neutral-300">
-                                                    {user_.isVerified ? 'Verified' : 'Not Verified'}
-                                                </span>
-                                            </label>
-                                        </div>
+                                        <PanelCheckbox
+                                            checked={user_.is_verified}
+                                            onChange={(checked) => setUser({ ...user_, is_verified: checked })}
+                                            label={user_.is_verified ? 'Verified' : 'Not Verified'}
+                                            activeColor="green"
+                                        />
                                     </div>
 
                                     <div className="relative group">
@@ -381,78 +346,61 @@ export default function UserEditPage() {
                                             <TbShieldCheck className="text-blue-600 dark:text-blue-400" />
                                             Role
                                         </label>
-                                        <select
-                                            defaultValue={user_.role_id}
-                                            onChange={(e) => setUser({ ...user_, role_id: Number(e.target.value) })}
-                                            className="w-full px-4 py-2 rounded-lg border border-black/50 dark:border-neutral-600 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent backdrop-blur-sm bg-white/50 dark:bg-neutral-800/50 text-neutral-800 dark:text-neutral-200 transition"
-                                        >
-                                            {roles.map(role => (
-                                                <option key={role.id} value={role.id}>
-                                                    {role.name}
-                                                </option>
-                                            ))}
-                                        </select>
+                                        <PanelSelect
+                                            value={user_.role_id}
+                                            onChange={(v) => setUser({ ...user_, role_id: Number(v) })}
+                                            placeholder="Select role"
+                                            options={roles.map(role => ({ value: role.id, label: role.name }))}
+                                        />
                                     </div>
                                 </div>
 
                                 <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-4 pt-4">
-                                    {(!response || (response && !response.success)) && <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+                                    <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
                                         <button
                                             type="submit"
                                             disabled={isLoading}
-                                            className="flex items-center gap-2 px-6 py-3 text-white bg-linear-to-r from-purple-500 to-pink-500 rounded-xl hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-purple-500/50 disabled:opacity-50 transition-all shadow-lg hover:shadow-purple-500/25"
+                                            className="flex items-center justify-center gap-2 px-6 py-3 text-white bg-blue-600/90 backdrop-blur-md border border-blue-400/40 rounded-xl hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-lg shadow-blue-500/30"
                                         >
-                                            <TbUpload className="w-5 h-5" />
+                                            {isLoading ? <span className="loader" style={{ width: 18, height: 18 }}></span> : <TbUpload className="w-5 h-5" />}
                                             {isLoading ? 'Updating...' : 'Update User'}
                                         </button>
                                         <Link
                                             to={'/panel/users'}
-                                            className="flex items-center gap-2 px-6 py-3 text-gray-700 dark:text-neutral-300 bg-white/50 dark:bg-neutral-800/50 backdrop-blur-sm rounded-xl hover:bg-white/60 dark:hover:bg-neutral-800/70 focus:outline-none focus:ring-2 focus:ring-gray-500/30 dark:focus:ring-gray-500/30 transition-all border border-white/30 dark:border-neutral-600/30"
+                                            className="flex items-center justify-center gap-2 px-6 py-3 text-gray-700 dark:text-neutral-300 bg-white/50 dark:bg-neutral-800/50 backdrop-blur-sm rounded-xl hover:bg-white/60 dark:hover:bg-neutral-800/70 focus:outline-none focus:ring-2 focus:ring-gray-500/30 dark:focus:ring-gray-500/30 transition-all duration-300 border border-white/30 dark:border-neutral-600/30"
                                         >
                                             <TbArrowLeft className="w-5 h-5" />
                                             Cancel
                                         </Link>
-                                    </div>}
+                                    </div>
                                     <div className='flex flex-col sm:flex-row gap-3 sm:gap-4 sm:items-center'>
                                         <Link to={`/panel/users/${user_.id}/reset-password`}
-                                            className='flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-neutral-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors duration-300'
+                                            className='flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-neutral-300 hover:text-blue-600 dark:hover:text-blue-400 transition-all duration-300'
                                         >
                                             <TbKey size={20} />
                                             Reset Password
                                         </Link>
                                         <Link to={`/panel/users/${user_.id}/activities`}
-                                            className='flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-neutral-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors duration-300'
+                                            className='flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-neutral-300 hover:text-blue-600 dark:hover:text-blue-400 transition-all duration-300'
                                         >
                                             <TbActivity size={20} />
                                             User Activities
                                         </Link>
-                                        {(!response || (response && !response.success)) && <>
-                                            <button
-                                                type="button"
-                                                onClick={handleDelete}
-                                                disabled={isLoading}
-                                                className="flex items-center gap-2 px-6 py-2 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors duration-300"
-                                            >
-                                                <TbTrash className="h-4 w-4" />
-                                                Delete
-                                            </button>
-                                        </>}
+                                        <button
+                                            type="button"
+                                            onClick={handleDelete}
+                                            disabled={isLoading}
+                                            className="flex items-center gap-2 px-6 py-2 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-all duration-300"
+                                        >
+                                            <TbTrash className="h-4 w-4" />
+                                            Delete
+                                        </button>
                                     </div>
                                 </div>
                             </form>
                         </div>
                     </div>
                 </div>
-
-                {/* Add Notification component */}
-                {deleteId && (
-                    <Notification
-                        message="Are you sure you want to delete this role?"
-                        type="action"
-                        onConfirm={confirmDelete}
-                        onClose={() => setDeleteId(null)}
-                    />
-                )}
             </div>
             {/* Add Crop Modal */}
             {showCropModal && tempImage && (
@@ -488,9 +436,9 @@ export default function UserEditPage() {
                                 Cancel
                             </button>
                             <button
-                                type="submit"
+                                type="button"
                                 onClick={handleCropComplete}
-                                className="flex items-center justify-center gap-2 px-6 py-3 text-white bg-linear-to-r from-purple-500 to-pink-500 rounded-xl hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-purple-500/50 disabled:opacity-50 transition-all shadow-lg hover:shadow-purple-500/25"
+                                className="flex items-center justify-center gap-2 px-6 py-3 text-white bg-blue-600/90 backdrop-blur-md border border-blue-400/40 rounded-xl hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-lg shadow-blue-500/30"
                             >
                                 <TbCheck className="w-5 h-5" />
                                 Apply

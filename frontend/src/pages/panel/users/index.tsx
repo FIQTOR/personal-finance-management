@@ -1,15 +1,19 @@
 import Loading from '@/components/Loading'
-import Notification from '@/components/PanelNotification'
 import AppConfig from '@/config/AppConfig'
 import { selectAuth } from '@/store/authSlice'
 import { useAppSelector } from '@/store/hooks'
 import apiClient from '@/services/apiClient';
 import { Link } from 'react-router-dom'
 import { useEffect, useState, useCallback } from 'react'
-import { TbUser, TbPlus, TbEdit, TbShieldCheck, TbTrash, TbTrashOff } from 'react-icons/tb'
-import * as XLSX from "xlsx";
+import { TbUser, TbPlus, TbEdit, TbShieldCheck, TbTrash, TbTrashOff, TbFileUpload, TbUpload } from 'react-icons/tb'
 import StaticDataTable from '@/components/StaticDataTable'
-import { getErrorData } from '@/utils/error'
+import PanelSelect from '@/components/PanelSelect'
+import ExportMenu from '@/components/ExportMenu'
+import BulkInsertModal from '@/components/BulkInsertModal'
+import ImportModal from '@/components/ImportModal'
+import { useNotification } from '@/context/useNotification'
+import { getErrorMessage } from '@/utils/error'
+import type { ExportColumn } from '@/utils/export'
 
 export interface CreatorUpdater {
     id: number;
@@ -56,6 +60,7 @@ type UserRecord = User & { currentUserEmail?: string };
 
 export default function UserManagement() {
     const { user } = useAppSelector(selectAuth)
+    const { notify, confirm } = useNotification()
     const [users, setUsers] = useState<User[]>([])
     const [roles, setRoles] = useState<Role[]>([])
     const [searchTerm, setSearchTerm] = useState('')
@@ -66,11 +71,11 @@ export default function UserManagement() {
     const [page, setPage] = useState(1)
     const [total, setTotal] = useState(0)
     const [loading, setLoading] = useState(false)
-    const [response, setResponse] = useState<ApiResponse | null>(null);
-    const [deleteId, setDeleteId] = useState<number | null>(null);
-    const [selectedUsers, setSelectedUsers] = useState<number[]>([]);
-    const [bulkDeleteMode, setBulkDeleteMode] = useState(false);
+    const [selectedUsers, setSelectedUsers] = useState<number[]>([])
+    const [bulkDeleteMode, setBulkDeleteMode] = useState(false)
     const [fetchTime, setFetchTime] = useState<number | null>(null);
+    const [showBulk, setShowBulk] = useState(false)
+    const [showImport, setShowImport] = useState(false)
 
     const GetUsers = useCallback(async () => {
         const startTime = performance.now();
@@ -97,56 +102,43 @@ export default function UserManagement() {
             setLoading(false)
         } catch (error: unknown) {
             setLoading(false)
-            console.error(error)
+            notify(getErrorMessage(error, 'Failed to fetch users'), 'error')
         }
-    }, [searchTerm, searchRole, orderBy, order, limit, page])
+    }, [searchTerm, searchRole, orderBy, order, limit, page, notify])
 
     useEffect(() => {
         document.title = `User Management ${AppConfig.exTitle}`
         GetUsers()
     }, [GetUsers])
 
-    const handleDelete = async (id: number) => {
-        setDeleteId(id);
+    const handleDelete = (id: number) => {
+        confirm('Are you sure you want to delete this user? This action cannot be undone.', async () => {
+            try {
+                const res = await apiClient.delete(`/users/${id}`);
+                await GetUsers();
+                notify(res.data.message || 'User deleted successfully', 'success');
+            } catch (error: unknown) {
+                notify(getErrorMessage(error, 'Failed to delete user'), 'error');
+            }
+        }, { actions: [{ label: 'Delete', variant: 'danger', onClick: () => {} }, { label: 'Cancel', onClick: () => {} }] });
     };
 
-    const confirmDelete = async () => {
-        if (!deleteId) return;
-
-        try {
-            const res = await apiClient.delete(`/users/${deleteId}`);
-            await GetUsers();
-            setResponse(res.data);
-        } catch (error: unknown) {
-            setResponse(getErrorData<ApiResponse>(error, { success: false, message: 'Failed to delete user' }));
-        }
-        setDeleteId(null);
-    };
-
-    const handleBulkDeleteConfirm = () => {
-        if (selectedUsers.length === 0) return;
-        setDeleteId(-1);
-    };
-
-    const handleBulkDelete = async () => {
-        if (selectedUsers.length === 0) return;
-
-        try {
-            setLoading(true);
-            const res = await apiClient.delete(`/users/bulk-delete`, {
-                data: { userIds: selectedUsers }
-            });
-            if (res.data.success) {
+    const handleBulkDelete = () => {
+        if (selectedUsers.length === 0) { notify('Please select at least one record', 'warning'); return; }
+        confirm(`Are you sure you want to delete ${selectedUsers.length} selected user${selectedUsers.length > 1 ? 's' : ''}? This action cannot be undone.`, async () => {
+            try {
+                setLoading(true);
+                const res = await apiClient.delete(`/users/bulk-delete`, { data: { userIds: selectedUsers } });
                 setSelectedUsers([]);
                 setBulkDeleteMode(false);
+                await GetUsers();
+                notify(res.data.message || `${selectedUsers.length} users deleted`, 'success');
+            } catch (error: unknown) {
+                notify(getErrorMessage(error, 'Failed to delete users'), 'error');
+            } finally {
+                setLoading(false);
             }
-            await GetUsers();
-            setResponse(res.data);
-        } catch (error: unknown) {
-            setResponse(getErrorData<ApiResponse>(error, { success: false, message: 'Failed to delete users' }));
-        }
-        setLoading(false);
-        setDeleteId(null);
+        }, { actions: [{ label: 'Delete All', variant: 'danger', onClick: () => {} }, { label: 'Cancel', onClick: () => {} }] });
     };
 
     const toggleUserSelection = (userId: number) => {
@@ -210,34 +202,37 @@ export default function UserManagement() {
         }
     }
 
+    const exportColumns: ExportColumn<User>[] = [
+        { key: 'id', header: 'ID' },
+        { key: 'name', header: 'Name' },
+        { key: 'email', header: 'Email' },
+        { key: 'role', header: 'Role', value: (u) => u.role?.name || '-' },
+        { key: 'permissions', header: 'Permissions', value: (u) => (u.role?.permissions || []).map((p) => p.name).join(', ') },
+        { key: 'is_blocked', header: 'Blocked', value: (u) => (u.is_blocked ? 'Yes' : 'No') },
+        { key: 'last_password_change', header: 'Last Password Change', value: (u) => u.last_password_change || '' },
+        { key: 'created_at', header: 'Created At' },
+    ];
+
     const [isDownloading, setIsDownloading] = useState(false)
     const handleDownloadAllUserData = async () => {
         setIsDownloading(true)
         try {
-            const res = await apiClient.get<{ data: User[] }>(`/all-users`);
-            const data = res.data.data.map((user) => ({
-                name: user.name,
-                email: user.email,
-                role: user.role.name,
-                permissions: user.role.permissions.map((p) => p.name).join(', '),
-                is_blocked: user.is_blocked,
-                last_password_change: user.last_password_change,
-                updated_by: user.updater ? user.updater.name : null,
-                updated_at: user.updated_at,
-                created_by: user.creator ? user.creator.name : null,
-                created_at: user.created_at,
-            }))
-
-            const worksheet = XLSX.utils.json_to_sheet(data);
-            const workbook = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(workbook, worksheet, "Users");
-            XLSX.writeFile(workbook, `users_${new Date().toISOString()}.xlsx`);
-        } catch {
-            console.error('Failed to download all user data')
+            await exportDataSafe()
+        } catch (error: unknown) {
+            notify(getErrorMessage(error, 'Failed to download all user data'), 'error')
         } finally {
             setIsDownloading(false)
         }
     }
+
+    const exportDataSafe = async () => {
+        const res = await apiClient.get<{ data: User[] }>(`/all-users`);
+        const data: User[] = res.data.data;
+        const { exportData } = await import('@/utils/export');
+        await exportData('xlsx', data, exportColumns, 'users');
+        notify('Exported users to Excel', 'success');
+    }
+
 
     return (
         <div className="p-6 relative h-full flex flex-col">
@@ -258,37 +253,41 @@ export default function UserManagement() {
                         </div>
                     </div>
                     <div className='flex flex-wrap gap-2 sm:gap-4'>
+                        <button type="button" onClick={() => setShowImport(true)}
+                            className="flex items-center gap-2 bg-indigo-600/90 backdrop-blur-md border border-indigo-400/40 text-white px-3 py-2 rounded-xl hover:bg-indigo-500 transition-all duration-300 shadow-lg text-sm">
+                            <TbFileUpload /><span className="hidden sm:inline">Import</span>
+                        </button>
+                        <button type="button" onClick={() => setShowBulk(true)}
+                            className="flex items-center gap-2 bg-blue-600/90 backdrop-blur-md border border-blue-400/40 text-white px-3 py-2 rounded-xl hover:bg-blue-500 transition-all duration-300 shadow-lg text-sm">
+                            <TbUpload /><span className="hidden sm:inline">Bulk Insert</span>
+                        </button>
+                        <ExportMenu rows={users} columns={exportColumns} filename="users" tableName="users" />
                         <button
+                            type="button"
                             onClick={handleDownloadAllUserData}
                             disabled={isDownloading}
-                            className="flex items-center gap-2 bg-white/10 dark:bg-neutral-800/50 backdrop-blur-sm border border-white/20 text-gray-700 dark:text-neutral-200 px-3 py-2 rounded-lg hover:bg-white/20 transition-all duration-300 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                            className="flex items-center gap-2 bg-white/10 dark:bg-neutral-800/50 backdrop-blur-sm border border-white/20 text-gray-700 dark:text-neutral-200 px-3 py-2 rounded-xl hover:bg-white/20 transition-all duration-300 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed text-sm"
                         >
-                            <div className="flex items-center gap-2">
-                                {isDownloading ? (
-                                    <>
-                                        <div className="w-5 h-5 flex items-center justify-center">
-                                            <Loading size={20} />
-                                        </div>
-                                        <span className="hidden sm:inline transition-all duration-300">Downloading...</span>
-                                    </>
-                                ) : (
-                                    <>
-                                        <div className="w-5 h-5 flex items-center justify-center">
-                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                                            </svg>
-                                        </div>
-                                        <span className="hidden sm:inline transition-all duration-300">Download XLSX</span>
-                                    </>
-                                )}
-                            </div>
+                            {isDownloading ? (
+                                <>
+                                    <Loading size={20} />
+                                    <span className="hidden lg:inline transition-all duration-300">Downloading...</span>
+                                </>
+                            ) : (
+                                <>
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                    </svg>
+                                    <span className="hidden lg:inline transition-all duration-300">Download XLSX</span>
+                                </>
+                            )}
                         </button>
                         <button
                             onClick={() => {
                                 setBulkDeleteMode(!bulkDeleteMode);
                                 setSelectedUsers([]);
                             }}
-                            className={`flex items-center gap-2 backdrop-blur-sm border px-3 py-2 rounded-lg transition-all duration-300 shadow-lg text-sm ${bulkDeleteMode
+                            className={`flex items-center gap-2 backdrop-blur-sm border px-3 py-2 rounded-xl transition-all duration-300 shadow-lg text-sm font-medium ${bulkDeleteMode
                                 ? 'bg-red-500/20 dark:bg-red-500/30 border-red-200/50 dark:border-red-700/50 text-red-700 dark:text-red-300'
                                 : 'bg-white/10 dark:bg-neutral-800/50 border-white/20 text-gray-700 dark:text-neutral-200 hover:bg-white/20'
                                 }`}
@@ -305,26 +304,17 @@ export default function UserManagement() {
                                 </>
                             )}
                         </button>
-                        {bulkDeleteMode && selectedUsers.length > 0 && (
+                        {bulkDeleteMode && (
                             <button
-                                onClick={handleBulkDeleteConfirm}
+                                onClick={handleBulkDelete}
                                 disabled={loading}
-                                className="flex items-center gap-2 bg-red-500 dark:bg-red-600 text-white px-3 py-2 rounded-lg hover:bg-red-600 dark:hover:bg-red-700 transition-all duration-300 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                                className="flex items-center gap-2 bg-red-500 dark:bg-red-600 text-white px-3 py-2 rounded-xl hover:bg-red-600 dark:hover:bg-red-700 transition-all duration-300 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
                             >
-                                {loading ? (
-                                    <>
-                                        <Loading size={16} />
-                                        <span className="hidden sm:inline">Deleting...</span>
-                                    </>
-                                ) : (
-                                    <>
-                                        <TbTrash className="w-4 h-4" />
-                                        <span className="hidden sm:inline">Delete ({selectedUsers.length})</span>
-                                    </>
-                                )}
+                                <TbTrash className="w-4 h-4" />
+                                <span className="hidden sm:inline">Delete Selected ({selectedUsers.length})</span>
                             </button>
                         )}
-                        <Link to={'/panel/users/add'} className="flex items-center gap-2 bg-white/10 dark:border-neutral-600 dark:bg-neutral-800/50 dark:text-neutral-200 backdrop-blur-sm border border-white/20 text-gray-700 px-3 py-2 rounded-lg hover:bg-white/20 transition-all duration-300 shadow-lg text-sm">
+                        <Link to={'/panel/users/add'} className="flex items-center gap-2 bg-white/10 dark:border-neutral-600 dark:bg-neutral-800/50 dark:text-neutral-200 backdrop-blur-sm border border-white/20 text-gray-700 px-3 py-2 rounded-xl hover:bg-white/20 transition-all duration-300 shadow-lg text-sm">
                             <TbPlus />
                             <span className="hidden sm:inline">Add User</span>
                         </Link>
@@ -335,13 +325,13 @@ export default function UserManagement() {
                         <input
                             type="search"
                             placeholder="Search users..."
-                            className="flex-1 px-3 py-2 rounded-lg bg-white/10 backdrop-blur-sm border border-white/20 dark:border-neutral-600 dark:bg-neutral-800/50 focus:outline-none focus:ring-2 focus:ring-purple-400 text-gray-700 dark:text-neutral-200 text-sm"
+                            className="flex-1 px-3 py-2 rounded-xl bg-white/10 backdrop-blur-sm border border-white/20 dark:border-neutral-600 dark:bg-neutral-800/50 focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700 dark:text-neutral-200 text-sm transition-all duration-300"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
                         <input
                             type="number"
-                            className="w-16 sm:w-20 px-2 sm:px-3 py-2 rounded-lg bg-white/10 backdrop-blur-sm border border-white/20 dark:border-neutral-600 dark:bg-neutral-800/50 focus:outline-none focus:ring-2 focus:ring-purple-400 text-gray-700 dark:text-neutral-200 text-sm"
+                            className="w-16 sm:w-20 px-2 sm:px-3 py-2 rounded-xl bg-white/10 backdrop-blur-sm border border-white/20 dark:border-neutral-600 dark:bg-neutral-800/50 focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700 dark:text-neutral-200 text-sm transition-all duration-300"
                             value={limit}
                             onChange={handleLimitChange}
                             min="1"
@@ -356,38 +346,15 @@ export default function UserManagement() {
                         />
                     </div>
 
-                    <div className="relative">
-                        <select
-                            className="pl-3 pr-8 py-2 w-full rounded-lg bg-white/10 backdrop-blur-sm border border-white/20 dark:border-neutral-600 dark:bg-neutral-800/50 focus:outline-none focus:ring-2 focus:ring-purple-400 text-gray-700 dark:text-neutral-200 appearance-none cursor-pointer text-sm min-w-30"
-                            value={searchRole}
-                            onChange={(e) => {
-                                setSearchRole(e.target.value)
-                                setPage(1)
-                            }}
-                        >
-                            <option value="">All Roles</option>
-                            {roles.map((role) => (
-                                <option key={role.id} value={role.name}>
-                                    {role.name}
-                                </option>
-                            ))}
-                        </select>
-                        <div className="absolute right-2 top-1/2 transform -translate-y-1/2 pointer-events-none">
-                            <svg className="w-4 h-4 text-gray-700 dark:text-neutral-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-                            </svg>
-                        </div>
-                    </div>
+                    <PanelSelect
+                        value={searchRole}
+                        onChange={(v) => { setSearchRole(v); setPage(1); }}
+                        placeholder="All Roles"
+                        compact
+                        className="min-w-30"
+                        options={[{ value: '', label: 'All Roles' }, ...roles.map((role) => ({ value: role.name, label: role.name }))]}
+                    />
                 </div>
-
-                {response && (
-                    <div className={`p-3 rounded-lg backdrop-blur-sm transition-all duration-300 text-sm ${response.success
-                        ? 'bg-green-500/10 text-green-700 border border-green-200/50'
-                        : 'bg-red-500/10 text-red-700 border border-red-200/50'
-                        }`}>
-                        {response.message}
-                    </div>
-                )}
             </div>
 
             <StaticDataTable
@@ -563,26 +530,14 @@ export default function UserManagement() {
                 onLimitChange={setLimit}
             />
 
-            {deleteId && deleteId !== -1 && (
-                <Notification
-                    message="Are you sure you want to delete this user?"
-                    type="action"
-                    onConfirm={confirmDelete}
-                    onClose={() => setDeleteId(null)}
-                />
-            )}
-
-            {deleteId === -1 && (
-                <Notification
-                    message={`Are you sure you want to delete ${selectedUsers.length} selected user${selectedUsers.length > 1 ? 's' : ''}? This action cannot be undone.`}
-                    type="action"
-                    onConfirm={handleBulkDelete}
-                    onClose={() => {
-                        setDeleteId(null);
-                        setSelectedUsers([]);
-                    }}
-                />
-            )}
+            <ImportModal isOpen={showImport} onClose={() => setShowImport(false)} resource="users" title="Import Users" onSuccess={GetUsers} />
+            <BulkInsertModal isOpen={showBulk} onClose={() => setShowBulk(false)} resource="users" title="Bulk Insert Users" onSuccess={GetUsers}
+                columns={[
+                    { key: 'name', label: 'Name', required: true, example: 'John Doe' },
+                    { key: 'email', label: 'Email', required: true, example: 'john@example.com' },
+                    { key: 'password', label: 'Password', required: true, example: 'secret123' },
+                    { key: 'roleId', label: 'Role ID', example: '1' },
+                ]} />
         </div>
     )
 }

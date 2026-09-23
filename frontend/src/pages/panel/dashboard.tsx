@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
     Chart as ChartJS,
     CategoryScale,
@@ -13,12 +13,14 @@ import {
 } from 'chart.js';
 import { Line, Doughnut } from 'react-chartjs-2';
 import AnimatedNumber from '@/components/AnimatedNumber';
-import { TbRefresh, TbDownload, TbChartBar, TbWallet, TbArrowUpRight, TbArrowDownRight, TbChartPie, TbTarget, TbActivity, TbUsers } from 'react-icons/tb';
+import { TbRefresh, TbDownload, TbChartBar, TbWallet, TbArrowUpRight, TbArrowDownRight, TbChartPie, TbTarget, TbActivity, TbUsers, TbChevronDown, TbDatabaseExport, TbFileTypeCsv, TbJson } from 'react-icons/tb';
 import { useAppSelector } from '@/store/hooks';
 import { selectAuth } from '@/store/authSlice';
 import apiClient from '@/services/apiClient';
 import AppConfig from '@/config/AppConfig';
 import { useLanguage } from '@/context/useLanguage';
+import { useNotification } from '@/context/useNotification';
+import { getErrorMessage } from '@/utils/error';
 
 ChartJS.register(
     CategoryScale,
@@ -66,9 +68,13 @@ interface DashboardAnalytics {
 export default function Dashboard() {
     const { user } = useAppSelector(selectAuth);
     const { t } = useLanguage();
+    const { notify } = useNotification();
     const [analytics, setAnalytics] = useState<DashboardAnalytics | null>(null);
     const [loading, setLoading] = useState(true);
     const [isRefreshing, setIsRefreshing] = useState(false);
+    const [isExportOpen, setIsExportOpen] = useState(false);
+    const [isExporting, setIsExporting] = useState(false);
+    const exportRef = useRef<HTMLDivElement>(null);
 
     const fetchAnalytics = useCallback(async () => {
         try {
@@ -76,16 +82,24 @@ export default function Dashboard() {
             const response = await apiClient.get(`/analytics/dashboard`);
             setAnalytics(response.data?.data || null);
         } catch (error) {
-            console.error('Error fetching analytics:', error);
+            notify(getErrorMessage(error, 'Error fetching analytics'), 'error');
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [notify]);
 
     useEffect(() => {
         document.title = `Dashboard ${AppConfig.exTitle}`;
         fetchAnalytics();
     }, [fetchAnalytics]);
+
+    useEffect(() => {
+        const onClickOutside = (e: MouseEvent) => {
+            if (exportRef.current && !exportRef.current.contains(e.target as Node)) setIsExportOpen(false);
+        };
+        document.addEventListener('mousedown', onClickOutside);
+        return () => document.removeEventListener('mousedown', onClickOutside);
+    }, []);
 
     const refreshData = async () => {
         setIsRefreshing(true);
@@ -93,20 +107,28 @@ export default function Dashboard() {
         setIsRefreshing(false);
     };
 
-    const exportData = () => {
-        const data = JSON.stringify(analytics, null, 2);
-        const blob = new Blob([data], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `analytics-report-${new Date().toISOString().split('T')[0]}.json`;
-        a.click();
-        URL.revokeObjectURL(url);
+    const exportDatabase = async (format: 'sql' | 'csv' | 'json') => {
+        setIsExporting(true);
+        try {
+            const response = await apiClient.get(`/analytics/export-database`, { params: { format }, responseType: 'blob' });
+            const url = URL.createObjectURL(new Blob([response.data]));
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `database_export.${format}`;
+            a.click();
+            URL.revokeObjectURL(url);
+            notify(`Exported database as ${format.toUpperCase()}`, 'success');
+        } catch (error) {
+            notify(getErrorMessage(error, 'Failed to export database'), 'error');
+        } finally {
+            setIsExporting(false);
+            setIsExportOpen(false);
+        }
     };
 
     if (loading || !analytics) {
         return (
-            <div className="p-6 min-h-screen space-y-6 animate-pulse">
+            <div className="p-6 h-full space-y-6 animate-pulse">
                 {/* Header */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-neutral-900/80 p-6 rounded-3xl border border-gray-100 dark:border-neutral-800/80 shadow-xs">
                     <div className="space-y-2">
@@ -200,7 +222,7 @@ export default function Dashboard() {
     };
 
     return (
-        <div className="p-6 relative min-h-screen space-y-6">
+        <div className="p-6 relative h-full space-y-6">
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-neutral-900/80 p-6 rounded-3xl border border-gray-100 dark:border-neutral-800/80 shadow-xs">
                 <div>
@@ -216,18 +238,38 @@ export default function Dashboard() {
                     <button
                         onClick={refreshData}
                         disabled={isRefreshing}
-                        className="px-4 py-2.5 bg-gray-50 dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700/60 rounded-xl hover:bg-gray-100 dark:hover:bg-neutral-700/60 transition-all flex items-center gap-2 text-gray-700 dark:text-neutral-200 text-xs font-semibold"
+                        className="px-4 py-2.5 bg-gray-50 dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700/60 rounded-xl hover:bg-gray-100 dark:hover:bg-neutral-700/60 transition-all duration-300 flex items-center gap-2 text-gray-700 dark:text-neutral-200 text-xs font-semibold"
                     >
-                        <TbRefresh className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                        {isRefreshing ? <span className="loader" style={{ width: 16, height: 16 }}></span> : <TbRefresh className="w-4 h-4" />}
                         {isRefreshing ? 'Refreshing...' : 'Refresh'}
                     </button>
-                    <button
-                        onClick={exportData}
-                        className="px-4 py-2.5 bg-gray-50 dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700/60 rounded-xl hover:bg-gray-100 dark:hover:bg-neutral-700/60 transition-all flex items-center gap-2 text-gray-700 dark:text-neutral-200 text-xs font-semibold"
-                    >
-                        <TbDownload className="w-4 h-4" />
-                        JSON Report
-                    </button>
+                    <div ref={exportRef} className="relative">
+                        <button
+                            onClick={() => setIsExportOpen((v) => !v)}
+                            disabled={isExporting}
+                            className="px-4 py-2.5 bg-emerald-600/90 backdrop-blur-md border border-emerald-400/40 rounded-xl hover:bg-emerald-500 transition-all duration-300 flex items-center gap-2 text-white text-xs font-semibold shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            {isExporting ? <span className="loader" style={{ width: 16, height: 16 }}></span> : <TbDownload className="w-4 h-4" />}
+                            Export DB
+                            <TbChevronDown className={`w-4 h-4 transition-transform duration-200 ${isExportOpen ? 'rotate-180' : ''}`} />
+                        </button>
+                        {isExportOpen && (
+                            <div className="absolute right-0 z-50 mt-1 w-48 rounded-xl border border-white/30 dark:border-neutral-700 bg-white/90 dark:bg-neutral-900/95 backdrop-blur-xl shadow-2xl py-1">
+                                <button type="button" onClick={() => exportDatabase('sql')}
+                                    className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left text-gray-700 dark:text-neutral-200 hover:bg-blue-500/10 transition-all duration-300">
+                                    <TbDatabaseExport className="text-purple-500" /> SQL (.sql)
+                                </button>
+                                <button type="button" onClick={() => exportDatabase('csv')}
+                                    className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left text-gray-700 dark:text-neutral-200 hover:bg-blue-500/10 transition-all duration-300">
+                                    <TbFileTypeCsv className="text-blue-500" /> CSV (.csv)
+                                </button>
+                                <button type="button" onClick={() => exportDatabase('json')}
+                                    className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left text-gray-700 dark:text-neutral-200 hover:bg-blue-500/10 transition-all duration-300">
+                                    <TbJson className="text-amber-500" /> JSON (.json)
+                                </button>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
 

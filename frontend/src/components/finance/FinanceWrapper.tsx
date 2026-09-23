@@ -18,7 +18,7 @@ export default function FinanceWrapper({ children }: FinanceWrapperProps) {
   }, [dispatch]);
 
   return (
-    <div className="p-6 relative min-h-screen space-y-6">
+    <div className="p-6 relative h-full space-y-6">
 
       {/* Main View */}
       {children}

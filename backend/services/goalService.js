@@ -47,6 +47,10 @@ class GoalService {
     await goal.destroy();
     return true;
   }
+
+  async bulkDeleteGoals(ids, userId) {
+    return await Goal.destroy({ where: { id: ids, user_id: userId } });
+  }
 }
 
 module.exports = new GoalService();

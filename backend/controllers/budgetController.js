@@ -62,10 +62,51 @@ const deleteBudget = asyncHandler(async (req, res) => {
   });
 });
 
+/** Bulk insert budgets from a parsed list. */
+const createBulkBudgets = asyncHandler(async (req, res) => {
+  const { items } = req.body;
+  if (!Array.isArray(items) || items.length === 0) {
+    throw new AppError('No items provided for bulk insert', 400);
+  }
+  const created = [];
+  const errors = [];
+  for (let i = 0; i < items.length; i++) {
+    const row = items[i] || {};
+    try {
+      if (row.limit_amount === undefined || row.limit_amount === '') throw new Error('Limit amount is required');
+      if (!row.start_date || !row.end_date) throw new Error('Start date and end date are required');
+      const item = await budgetService.createBudget(req.user.id, row);
+      created.push(item);
+    } catch (err) {
+      errors.push({ row: i + 1, name: row.category_id || '-', message: err.message || 'Failed to create budget' });
+    }
+  }
+  return success(res, {
+    statusCode: 201,
+    message: `Bulk insert finished: ${created.length} created, ${errors.length} failed`,
+    data: { createdCount: created.length, failedCount: errors.length, created, errors }
+  });
+});
+
+/** Bulk delete budgets owned by the authenticated user. */
+const bulkDeleteBudgets = asyncHandler(async (req, res) => {
+  const { ids } = req.body;
+  if (!Array.isArray(ids) || ids.length === 0) {
+    throw new AppError('IDs array is required', 400);
+  }
+  const deletedCount = await budgetService.bulkDeleteBudgets(ids, req.user.id);
+  return success(res, {
+    message: `${deletedCount} budgets deleted`,
+    data: { deletedCount }
+  });
+});
+
 module.exports = {
   getBudgets,
   getBudget,
   createBudget,
+  createBulkBudgets,
   updateBudget,
-  deleteBudget
+  deleteBudget,
+  bulkDeleteBudgets
 };

@@ -5,6 +5,90 @@ const { Op } = require("sequelize");
 const asyncHandler = require("../utils/asyncHandler");
 const { success } = require("../utils/response");
 
+const models = require("../models");
+
+const escapeCsv = (val) => `"${String(val ?? '').replace(/"/g, '""')}"`;
+const escapeSql = (val) => {
+  if (val === null || val === undefined) return 'NULL';
+  if (typeof val === 'number' || typeof val === 'boolean') return String(val);
+  if (val instanceof Date) return `'${val.toISOString().slice(0, 19).replace('T', ' ')}'`;
+  if (typeof val === 'object') return `'${JSON.stringify(val).replace(/'/g, "''")}'`;
+  return `'${String(val).replace(/'/g, "''")}'`;
+};
+
+/**
+ * Export the whole database in sql | csv | json format.
+ * @param {Object} req - Express request object (`?format=`)
+ * @param {Object} res - Express response object
+ */
+const exportDatabase = asyncHandler(async (req, res) => {
+    const formatType = (req.query.format || 'sql').toLowerCase();
+    const modelsMap = {
+        users: models.User,
+        roles: models.Role,
+        permissions: models.Permission,
+        role_permissions: models.RolePermission,
+        user_sessions: models.UserSession,
+        user_activities: models.UserActivity,
+        failed_login_attempts: models.FailedLoginAttempt,
+        reset_password_tokens: models.ResetPasswordToken,
+        verification_tokens: models.VerificationToken,
+        categories: models.Category,
+        transactions: models.Transaction,
+        budgets: models.Budget,
+        goals: models.Goal,
+        app_settings: models.AppSetting
+    };
+
+    const dbTables = {};
+    for (const [key, model] of Object.entries(modelsMap)) {
+        dbTables[key] = model && model.findAll ? await model.findAll({ raw: true }) : [];
+    }
+
+    if (formatType === 'sql') {
+        let sql = `-- DATABASE EXPORT\n-- Exported At: ${new Date().toISOString()}\n\n`;
+        for (const [table, rows] of Object.entries(dbTables)) {
+            if (!rows || rows.length === 0) continue;
+            const cols = Object.keys(rows[0]);
+            const colList = cols.map((c) => `\`${c}\``).join(', ');
+            rows.forEach((row) => {
+                const values = cols.map((c) => escapeSql(row[c])).join(', ');
+                sql += `INSERT INTO \`${table}\` (${colList}) VALUES (${values});\n`;
+            });
+            sql += '\n';
+        }
+        res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+        res.setHeader('Content-Disposition', 'attachment; filename="database_export.sql"');
+        return res.send(sql);
+    }
+
+    if (formatType === 'csv') {
+        let csv = '';
+        for (const [table, rows] of Object.entries(dbTables)) {
+            csv += `# TABLE: ${table}\n`;
+            if (!rows || rows.length === 0) { csv += '\n'; continue; }
+            const cols = Object.keys(rows[0]);
+            csv += cols.map(escapeCsv).join(',') + '\n';
+            rows.forEach((row) => { csv += cols.map((c) => escapeCsv(row[c])).join(',') + '\n'; });
+            csv += '\n';
+        }
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', 'attachment; filename="database_export.csv"');
+        return res.send('\ufeff' + csv);
+    }
+
+    if (formatType === 'json') {
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        res.setHeader('Content-Disposition', 'attachment; filename="database_export.json"');
+        return res.send(JSON.stringify(dbTables, null, 2));
+    }
+
+    return success(res, {
+        message: 'Database export retrieved successfully',
+        data: dbTables
+    });
+});
+
 /**
  * Get dashboard analytics metrics, growth, and retention data
  * @param {Object} req - Express request object
@@ -138,5 +222,6 @@ const getDashboardAnalytics = asyncHandler(async (req, res) => {
 });
 
 module.exports = {
-    getDashboardAnalytics
+    getDashboardAnalytics,
+    exportDatabase
 };
