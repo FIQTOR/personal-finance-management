@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Download, Filter, Plus, Edit2, Trash2, ArrowUpRight, ArrowDownRight, Upload, FileUp, Trash } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { Download, Filter, Plus, Edit2, Trash2, ArrowUpRight, ArrowDownRight, Upload, FileUp, Trash, Search } from 'lucide-react';
 import { TbTrashOff } from 'react-icons/tb';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { fetchTransactions, deleteTransaction } from '@/store/financeSlice';
@@ -36,6 +36,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({ onAddClick, on
   const [showImport, setShowImport] = useState(false);
   const [bulkDeleteMode, setBulkDeleteMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
     dispatch(fetchTransactions(filters));
@@ -108,6 +109,16 @@ export const TransactionList: React.FC<TransactionListProps> = ({ onAddClick, on
     { value: '', label: 'All Categories' },
     ...categories.map((c) => ({ value: c.id, label: c.name })),
   ];
+
+  const filteredTransactions = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return transactions;
+    return transactions.filter((t) =>
+      [t.notes, t.category?.name, t.type, t.currency, t.date, String(t.amount)]
+        .filter(Boolean)
+        .some((field) => String(field).toLowerCase().includes(q))
+    );
+  }, [transactions, search]);
 
   return (
     <div className="space-y-6">
@@ -202,6 +213,16 @@ export const TransactionList: React.FC<TransactionListProps> = ({ onAddClick, on
 
       {/* Data Table */}
       <div className="bg-white dark:bg-neutral-800/60 rounded-2xl border border-gray-100 dark:border-neutral-800 overflow-hidden shadow-xs">
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-100 dark:border-neutral-800">
+          <Search className="w-4 h-4 text-gray-400 shrink-0" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search transactions…"
+            className="w-full rounded-xl bg-white/10 backdrop-blur-sm border border-white/20 dark:border-neutral-600 dark:bg-neutral-800/50 focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700 dark:text-neutral-200 text-sm px-3 py-2"
+          />
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm text-gray-600 dark:text-neutral-300">
             <thead className="bg-gray-50 dark:bg-neutral-900 text-xs font-semibold text-gray-500 dark:text-neutral-400 uppercase tracking-wider">
@@ -215,12 +236,12 @@ export const TransactionList: React.FC<TransactionListProps> = ({ onAddClick, on
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-neutral-800">
-              {transactions.length === 0 ? (
+              {filteredTransactions.length === 0 ? (
                 <tr>
                   <td colSpan={bulkDeleteMode ? 6 : 5} className="px-6 py-8 text-center text-gray-400">No transactions found.</td>
                 </tr>
               ) : (
-                transactions.map((t) => (
+                filteredTransactions.map((t) => (
                   <tr key={t.id}
                     className={`hover:bg-gray-50/50 dark:hover:bg-neutral-800/50 transition-colors ${bulkDeleteMode && selectedIds.includes(t.id) ? 'bg-red-50/50 dark:bg-red-900/10' : ''}`}>
                     {bulkDeleteMode && (

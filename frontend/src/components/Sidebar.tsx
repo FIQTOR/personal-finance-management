@@ -1,13 +1,14 @@
 import { selectAuth } from '@/store/authSlice'
 import { useAppSelector } from '@/store/hooks'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
     TbHome, TbUsers, TbArrowLeft, TbChevronDown, TbShieldLock,
     TbKey, TbUserShield,
-    TbWallet, TbMenu, TbX,
+    TbWallet, TbMenu, TbX, TbSearch,
     TbLayoutDashboard, TbReceipt, TbChartPie, TbTarget
 } from 'react-icons/tb'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
+import PanelSearch from '@/components/PanelSearch'
 
 interface SubItem {
     name: string
@@ -72,6 +73,7 @@ export default function Sidebar() {
     })
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
     const [isMobile, setIsMobile] = useState(false)
+    const [searchOpen, setSearchOpen] = useState(false)
     const navigate = useNavigate()
 
     useEffect(() => {
@@ -82,6 +84,20 @@ export default function Sidebar() {
         checkMobile()
         window.addEventListener('resize', checkMobile)
         return () => window.removeEventListener('resize', checkMobile)
+    }, [])
+
+    const openSearch = useCallback(() => setSearchOpen(true), [])
+
+    // Global Ctrl/Cmd+K shortcut to open the panel search palette.
+    useEffect(() => {
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+                event.preventDefault()
+                setSearchOpen((prev) => !prev)
+            }
+        }
+        window.addEventListener('keydown', handleKeyDown)
+        return () => window.removeEventListener('keydown', handleKeyDown)
     }, [])
 
     const hasPermission = (permission?: string) => !permission || permissions.has(permission)
@@ -183,6 +199,21 @@ export default function Sidebar() {
                     </div>
                 </div>
 
+                <div className="px-4 mb-3">
+                    <button
+                        type="button"
+                        onClick={openSearch}
+                        className="group flex w-full items-center gap-2 rounded-xl border border-neutral-200/70 dark:border-neutral-700/70 bg-white/60 dark:bg-neutral-800/50 px-3 py-2.5 text-sm text-neutral-500 dark:text-neutral-400 backdrop-blur-sm transition-colors hover:bg-neutral-900/5 dark:hover:bg-white/5 hover:text-neutral-900 dark:hover:text-white"
+                        title="Search pages (Ctrl/Cmd+K)"
+                    >
+                        <TbSearch className="h-4 w-4 shrink-0" />
+                        <span className="flex-1 text-left">Search pages…</span>
+                        <kbd className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-neutral-100/70 dark:bg-neutral-800/70 px-1.5 py-0.5 text-[10px] font-mono text-neutral-400">
+                            ⌘K
+                        </kbd>
+                    </button>
+                </div>
+
                 <nav className="flex-1 px-2 space-y-1 overflow-y-auto scrollbar-hide">
                     {filteredSidebarItems.map(item =>
                         item.subItems ? renderSubItems(item) : renderSingleItem(item)
@@ -198,6 +229,10 @@ export default function Sidebar() {
 
             {isMobile && isMobileMenuOpen && (
                 <div className="fixed inset-0 bg-neutral-900/40 backdrop-blur-sm z-40 transition-opacity duration-500 pointer-events-auto" onClick={() => setIsMobileMenuOpen(false)} />
+            )}
+
+            {searchOpen && (
+                <PanelSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
             )}
         </>
     )

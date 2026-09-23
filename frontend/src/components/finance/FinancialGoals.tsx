@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Target, Plus, Trash2, Edit2, CheckCircle2, Upload, FileUp } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { Target, Plus, Trash2, Edit2, CheckCircle2, Upload, FileUp, Search } from 'lucide-react';
 import { TbTrashOff } from 'react-icons/tb';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { createGoal, updateGoal, deleteGoal, fetchGoals } from '@/store/financeSlice';
@@ -25,6 +25,7 @@ export const FinancialGoals: React.FC = () => {
   const [showImport, setShowImport] = useState(false);
   const [bulkDeleteMode, setBulkDeleteMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [search, setSearch] = useState('');
 
   const [name, setName] = useState('');
   const [targetAmount, setTargetAmount] = useState('');
@@ -106,6 +107,16 @@ export const FinancialGoals: React.FC = () => {
     { key: 'deadline', header: 'Deadline' },
   ];
 
+  const filteredGoals = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return goals;
+    return goals.filter((g) =>
+      [g.name, g.currency, g.deadline, String(g.target_amount), String(g.current_amount)]
+        .filter(Boolean)
+        .some((field) => String(field).toLowerCase().includes(q))
+    );
+  }, [goals, search]);
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -146,8 +157,19 @@ export const FinancialGoals: React.FC = () => {
         </div>
       </div>
 
+      <div className="flex items-center gap-2 px-1">
+        <Search className="w-4 h-4 text-gray-400 shrink-0" />
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search goals…"
+          className="w-full rounded-xl bg-white/10 backdrop-blur-sm border border-white/20 dark:border-neutral-600 dark:bg-neutral-800/50 focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700 dark:text-neutral-200 text-sm px-3 py-2"
+        />
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {goals.map((g) => {
+        {filteredGoals.map((g) => {
           const target = Number(g.target_amount);
           const current = Number(g.current_amount);
           const percentage = Math.min(Math.round((current / target) * 100), 100);

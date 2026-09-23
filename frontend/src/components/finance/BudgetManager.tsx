@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Plus, Trash2, Edit2, AlertCircle, PieChart, Upload, FileUp } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { Plus, Trash2, Edit2, AlertCircle, PieChart, Upload, FileUp, Search } from 'lucide-react';
 import { TbTrashOff } from 'react-icons/tb';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { createBudget, updateBudget, deleteBudget, fetchBudgets } from '@/store/financeSlice';
@@ -25,6 +25,7 @@ export const BudgetManager: React.FC = () => {
   const [showImport, setShowImport] = useState(false);
   const [bulkDeleteMode, setBulkDeleteMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [search, setSearch] = useState('');
 
   const [categoryId, setCategoryId] = useState<number | string>('');
   const [limitAmount, setLimitAmount] = useState<string>('');
@@ -112,6 +113,16 @@ export const BudgetManager: React.FC = () => {
     { key: 'end_date', header: 'End Date' },
   ];
 
+  const filteredBudgets = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return budgets;
+    return budgets.filter((b) =>
+      [b.category?.name, b.currency, b.start_date, b.end_date, String(b.limit_amount)]
+        .filter(Boolean)
+        .some((field) => String(field).toLowerCase().includes(q))
+    );
+  }, [budgets, search]);
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -152,8 +163,19 @@ export const BudgetManager: React.FC = () => {
         </div>
       </div>
 
+      <div className="flex items-center gap-2 px-1">
+        <Search className="w-4 h-4 text-gray-400 shrink-0" />
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search budgets…"
+          className="w-full rounded-xl bg-white/10 backdrop-blur-sm border border-white/20 dark:border-neutral-600 dark:bg-neutral-800/50 focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700 dark:text-neutral-200 text-sm px-3 py-2"
+        />
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {budgets.map((b) => {
+        {filteredBudgets.map((b) => {
           const spent = getSpentAmount(b);
           const limit = Number(b.limit_amount);
           const percentage = Math.min(Math.round((spent / limit) * 100), 100);

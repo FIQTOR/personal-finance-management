@@ -47,15 +47,6 @@ export interface User {
     role: Role;
 }
 
-interface ApiResponse {
-    success: boolean;
-    message: string;
-    data?: {
-        users: User[];
-        total: number;
-    };
-}
-
 type UserRecord = User & { currentUserEmail?: string };
 
 export default function UserManagement() {
