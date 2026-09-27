@@ -29,17 +29,17 @@
   --bg: #fff;
   --border: #e5e4e7;
   --code-bg: #f4f3ec;
-  --accent: #aa3bff;
+  --accent: #2563eb;
   /* ... copy semua variabel light kamu di sini ... */
 }
 
 .dark {
   --text: #9ca3af;
   --text-h: #f3f4f6;
-  --bg: #16171d;
+  --bg: #0a0a0a;
   --border: #2e303a;
   --code-bg: #1f2028;
-  --accent: #c084fc;
+  --accent: #60a5fa;
 
 }
 
