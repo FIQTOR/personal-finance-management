@@ -1,37 +1,13 @@
-import React, { createContext, useState, useCallback, useRef } from 'react';
-
-type NotificationType = 'success' | 'error' | 'warning' | 'info' | 'action';
-
-export interface NotificationAction {
-    label: string;
-    onClick: () => void;
-    variant?: 'primary' | 'danger' | 'secondary';
-}
-
-export interface Notification {
-    id: string;
-    message: string;
-    type: NotificationType;
-    title?: string;
-    actions?: NotificationAction[];
-}
-
-export interface NotificationOptions { title?: string; duration?: number; actions?: NotificationAction[] }
-
-export interface NotificationContextType {
-    addNotification: (message: string, type: NotificationType, options?: NotificationOptions) => string;
-    notify: (message: string, type?: NotificationType, options?: NotificationOptions) => string;
-    confirm: (message: string, onConfirm: () => void, options?: NotificationOptions) => string;
-    removeNotification: (id: string) => void;
-    notifications: Notification[];
-}
-
-const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
-
-export { NotificationContext };
+import React, { useState, useCallback, useRef } from 'react';
+import {
+    NotificationContext,
+    type NotificationContextType,
+    type NotificationOptions,
+    type NotificationType,
+} from './notificationContext';
 
 export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const [notifications, setNotifications] = useState<Notification[]>([]);
+    const [notifications, setNotifications] = useState<NotificationContextType['notifications']>([]);
     const timers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
     const removeNotification = useCallback((id: string) => {
@@ -73,8 +49,4 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     );
 };
 
-export const useNotification = (): NotificationContextType => {
-    const context = React.useContext(NotificationContext);
-    if (!context) throw new Error('useNotification must be used within a NotificationProvider');
-    return context;
-};
+export type { NotificationContextType, NotificationOptions } from './notificationContext';

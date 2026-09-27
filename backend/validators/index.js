@@ -88,4 +88,30 @@ const oneOf = (allowed, { required = false } = {}) => ({
     },
 });
 
-module.exports = { object, string, boolean, oneOf, REQUIRED };
+/** Matches an ISO-8601 date (YYYY-MM-DD) optionally followed by a time part. */
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}([T ]\d{2}:\d{2}(:\d{2}(\.\d{1,3})?)?(Z|[+-]\d{2}:?\d{2})?)?$/;
+
+/**
+ * Create a date field spec that validates ISO-8601 date strings (YYYY-MM-DD).
+ * Rejects malformed strings (also rejects impossible calendar days).
+ */
+const date = ({ required = false, allowNull = false } = {}) => ({
+    required,
+    validate: (raw, key) => {
+        if (raw === null) {
+            if (allowNull) return { ok: true, value: null };
+            return { ok: false, message: `${key} must be a valid date` };
+        }
+        const s = typeof raw === 'string' ? raw.trim() : raw instanceof Date ? raw.toISOString() : raw;
+        if (typeof s !== 'string' || !ISO_DATE_RE.test(s)) {
+            return { ok: false, message: `${key} must be a valid ISO date (YYYY-MM-DD)` };
+        }
+        const parsed = new Date(s);
+        if (Number.isNaN(parsed.getTime())) {
+            return { ok: false, message: `${key} must be a valid date` };
+        }
+        return { ok: true, value: s };
+    },
+});
+
+module.exports = { object, string, boolean, oneOf, date, REQUIRED };

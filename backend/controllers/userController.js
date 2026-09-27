@@ -154,6 +154,28 @@ const getUsers = asyncHandler(async (req, res) => {
 });
 
 /**
+ * List every user (no pagination) with roles & permissions.
+ * Used by the admin "Export users to Excel" action.
+ */
+const getAllUsers = asyncHandler(async (req, res) => {
+    const users = await User.findAll({
+        include: [
+            {
+                model: Role,
+                as: 'role',
+                include: [{ model: Permission, as: 'permissions', through: { attributes: [] } }],
+            },
+        ],
+        order: [['created_at', 'DESC']],
+    });
+
+    return success(res, {
+        message: 'Users retrieved successfully',
+        data: { users },
+    });
+});
+
+/**
  * Get a single user by id (with role & permissions).
  */
 const getUser = asyncHandler(async (req, res) => {
@@ -504,6 +526,7 @@ const resetUserPassword = asyncHandler(async (req, res) => {
 module.exports = {
     upload,
     getUsers,
+    getAllUsers,
     getUser,
     createUser,
     createBulkUsers,

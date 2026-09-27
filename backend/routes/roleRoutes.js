@@ -9,8 +9,8 @@ const checkPermission = require('../middlewares/checkPermission');
 
 const router = express.Router();
 
-// Listing is available to anyone who can view the dashboard.
-router.get('/', VerifyToken, checkPermission('view_dashboard'), roleController.getRoles);
+// Listing is available to dashboard viewers and user managers (role dropdowns).
+router.get('/', VerifyToken, checkPermission(['view_dashboard', 'manage_users']), roleController.getRoles);
 
 // Mutations require role management permission.
 router.use(VerifyToken, checkPermission('manage_roles'));

@@ -13,6 +13,9 @@ const activityRoutes = require('./activityRoutes');
 const analyticsRoutes = require('./analyticsRoutes');
 const financeRoutes = require('./financeRoutes');
 const appSettingRoutes = require('./appSettingRoutes');
+const userController = require('../controllers/userController');
+const VerifyToken = require('../middlewares/verifyToken');
+const checkPermission = require('../middlewares/checkPermission');
 
 const apiRouter = express.Router();
 
@@ -26,6 +29,8 @@ apiRouter.get('/', (req, res) => {
 });
 
 apiRouter.use('/', authRoutes);
+// Full (unpaginated) user list for exports — requires user-management rights.
+apiRouter.get('/all-users', VerifyToken, checkPermission('manage_users'), userController.getAllUsers);
 apiRouter.use('/users', userRoutes);
 apiRouter.use('/roles', roleRoutes);
 apiRouter.use('/permissions', permissionRoutes);

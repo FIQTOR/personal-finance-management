@@ -217,8 +217,8 @@ export default function UserManagement() {
     }
 
     const exportDataSafe = async () => {
-        const res = await apiClient.get<{ data: User[] }>(`/all-users`);
-        const data: User[] = res.data.data;
+        const res = await apiClient.get<{ data: { users: User[] } }>(`/all-users`);
+        const data: User[] = res.data.data.users;
         const { exportData } = await import('@/utils/export');
         await exportData('xlsx', data, exportColumns, 'users');
         notify('Exported users to Excel', 'success');

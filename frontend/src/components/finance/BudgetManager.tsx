@@ -55,6 +55,10 @@ export const BudgetManager: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (startDate && endDate && endDate < startDate) {
+      notify('End date must be on or after the start date', 'error');
+      return;
+    }
     const payload = {
       category_id: categoryId ? Number(categoryId) : undefined,
       limit_amount: parseFloat(limitAmount),

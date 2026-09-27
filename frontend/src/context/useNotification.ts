@@ -1,3 +1,3 @@
-// Re-export from the context so both import paths stay valid.
-export { useNotification } from './NotificationContext';
-export type { NotificationContextType, NotificationAction } from './NotificationContext';
+// Re-export from the context definition so both import paths stay valid.
+export { useNotification } from './notificationContext';
+export type { NotificationContextType, NotificationAction } from './notificationContext';
