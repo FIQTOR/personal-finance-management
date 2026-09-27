@@ -99,12 +99,12 @@ const ForgotPassword = () => {
                         Forgot Password
                     </motion.h1>
                     <motion.p variants={itemVariants} className='text-neutral-500 dark:text-neutral-400 text-xs font-semibold uppercase tracking-widest'>
-                        Secure Identity Recovery
+                        Password Recovery
                     </motion.p>
                 </div>
 
                 <motion.p variants={itemVariants} className='text-neutral-600 dark:text-neutral-300 text-sm text-center leading-relaxed px-2 transition-colors'>
-                    Enter your authorized email address to initiate a reset sequence.
+                    Enter your email address to receive a password reset link.
                 </motion.p>
 
                 <AnimatePresence mode="wait">
@@ -126,7 +126,7 @@ const ForgotPassword = () => {
                 <form onSubmit={handleSubmit} className='flex flex-col gap-6 relative z-10'>
                     <motion.div variants={itemVariants} className='flex flex-col gap-2 relative'>
                         <label htmlFor="email" className='text-[10px] font-black uppercase tracking-[0.2em] text-neutral-400 pl-1'>
-                            Access Identifier
+                            Email Address
                         </label>
                         <div className="group relative">
                             <TbMail className='absolute w-5 h-5 top-1/2 -translate-y-1/2 left-4 text-neutral-400 group-focus-within:text-blue-500 transition-colors' />
@@ -146,11 +146,11 @@ const ForgotPassword = () => {
                     <motion.div variants={itemVariants}>
                         {countdown > 0 ? (
                             <div className='bg-amber-500/5 border border-amber-500/10 p-4 rounded-2xl text-amber-600 dark:text-amber-400 text-[10px] font-black uppercase tracking-[0.2em] text-center'>
-                                Sequence locked for {countdown}s
+                                You can retry in {countdown}s
                             </div>
                         ) : (
                             <button className='w-full py-4 px-6 rounded-2xl bg-linear-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-blue-500/20 active:scale-[0.98] transition-all cursor-pointer'>
-                                Request Reset Link
+                                Send Reset Link
                             </button>
                         )}
                     </motion.div>
@@ -163,7 +163,7 @@ const ForgotPassword = () => {
                     {!user && (
                         <Link to="/signin" className='group flex items-center gap-2 text-neutral-400 hover:text-indigo-500 text-[10px] font-black uppercase tracking-[0.2em] transition-colors'>
                             <TbArrowLeft className='group-hover:-translate-x-1 transition-transform' />
-                            Back to Access Hub
+                            Back to Sign In
                         </Link>
                     )}
                 </motion.div>

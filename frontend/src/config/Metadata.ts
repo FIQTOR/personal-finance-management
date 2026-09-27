@@ -1,50 +1,30 @@
 /**
- * Metadata configuration for IARTY
- * Optimized for SEO, OpenGraph, Twitter cards, and other essential meta information
- * Updated to include Products and Services
+ * Metadata configuration for Personal Finance Management.
+ * Optimized for SEO, OpenGraph, Twitter cards, and other essential meta information.
  */
+
 const MetadataConfig = {
     // Basic metadata
-    title: "IARTY | Official Website - Tech Education, Products & Digital Services",
-    creator: "IARTY",
+    title: "Personal Finance | Track Income, Expenses & Budgets",
+    creator: "Personal Finance Management",
     metadataBase: new URL("https://www.iarty.id"),
     description:
-        "Official website of IARTY. A digital ecosystem providing IT education, innovative products, and professional digital services for students, beginners, and businesses.",
+        "A comprehensive personal finance management solution to track income and expenses, monitor category budgets, manage savings goals, and export reports.",
 
-    // Keywords for SEO (Expanded for Products & Services)
+    // Keywords for SEO
     keywords: [
-        // Branding
-        "iarty",
-        "iarty education",
-        "iarty products",
-        "iarty services",
-        "iarty indonesia",
-
-        // Services (Layanan)
-        "software development services",
-        "jasa pembuatan website",
-        "jasa pembuatan aplikasi",
-        "ui ux design services",
-        "digital transformation consultant",
-        "it consulting indonesia",
-
-        // Products (Produk)
-        "digital products",
-        "software solutions",
-        "educational tools",
-        "sass products iarty",
-
-        // Education (Existing)
-        "online education",
-        "coding bootcamp indonesia",
-        "belajar programming",
-        "web development course",
-        "react nextjs tutorial",
+        "personal finance",
+        "budgeting",
+        "expense tracker",
+        "income tracking",
+        "financial goals",
+        "money management",
+        "savings",
     ],
 
     // Author information
     authors: {
-        name: "IARTY Team",
+        name: "Personal Finance Management",
         url: "https://www.iarty.id",
     },
 
@@ -52,17 +32,17 @@ const MetadataConfig = {
     openGraph: {
         type: "website",
         url: "https://www.iarty.id",
-        siteName: "IARTY",
-        title: "IARTY - Innovating Education, Products, and Digital Services",
+        siteName: "Personal Finance Management",
+        title: "Personal Finance - Track Income, Expenses & Budgets",
         description:
-            "Solusi satu atap untuk belajar coding, membangun produk digital, dan layanan pengembangan software profesional.",
+            "Track income, expenses, budgets, and savings goals in one place.",
         locale: "id-ID",
         images: [
             {
-                url: "/og-image.jpg", // Pastikan gambar ini merepresentasikan brand secara umum
+                url: "/og-image.jpg",
                 width: 1200,
                 height: 630,
-                alt: "IARTY - Tech Ecosystem",
+                alt: "Personal Finance Management",
                 type: "image/jpeg",
             },
         ],
@@ -73,9 +53,9 @@ const MetadataConfig = {
     // Twitter card metadata
     twitter: {
         card: "summary_large_image",
-        title: "IARTY - Tech Education, Products & Services",
+        title: "Personal Finance - Track Income & Budgets",
         description:
-            "Dari kursus coding hingga solusi perangkat lunak kustom. Bangun masa depan digital Anda bersama IARTY.",
+            "Manage your money with budgets, goals, and clear reports.",
         creator: "@iarty",
         images: ["/og-image.jpg"],
     },

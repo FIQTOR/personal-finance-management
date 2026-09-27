@@ -10,7 +10,7 @@ const PageTransition = ({ children }: { children: ReactNode }) => {
             animate={{ opacity: 1, y: 0 }}
             // Animasi saat halaman akan pindah (keluar)
             exit={{ opacity: 0, y: -20 }}
-            // Pengaturan durasi dan kelancaran
+            // Transition duration and easing settings
             transition={{ duration: 0.3, ease: 'easeInOut' }}
             className="w-full h-full"
         >

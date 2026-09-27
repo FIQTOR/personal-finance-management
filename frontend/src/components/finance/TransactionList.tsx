@@ -238,7 +238,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({ onAddClick, on
             <tbody className="divide-y divide-gray-100 dark:divide-neutral-800">
               {filteredTransactions.length === 0 ? (
                 <tr>
-                  <td colSpan={bulkDeleteMode ? 6 : 5} className="px-6 py-8 text-center text-gray-400">No transactions found.</td>
+                  <td colSpan={bulkDeleteMode ? 6 : 5} className="px-6 py-8 text-center text-gray-400">No transactions found</td>
                 </tr>
               ) : (
                 filteredTransactions.map((t) => (

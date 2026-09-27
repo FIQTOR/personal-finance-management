@@ -160,7 +160,7 @@ const EmailVerification = () => {
                         className='group text-neutral-400 hover:text-rose-500 font-bold text-[10px] uppercase tracking-widest transition-all duration-300 flex items-center justify-center gap-2 mx-auto'
                     >
                         <TbLogout className="group-hover:-translate-x-1 transition-transform" size={16} />
-                        Sign Out Session
+                        Sign Out
                     </button>
                 </motion.div>
             </motion.div>

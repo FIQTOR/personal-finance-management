@@ -73,10 +73,10 @@ const VerifyEmail = () => {
                     <motion.h1
                         className='text-3xl font-black bg-linear-to-br from-blue-600 via-indigo-600 to-blue-600 dark:from-blue-400 dark:via-indigo-400 dark:to-blue-400 bg-clip-text text-transparent tracking-tight'
                     >
-                        Verification Status
+                        Email Verification
                     </motion.h1>
                     <p className="text-neutral-500 dark:text-neutral-400 text-xs font-black uppercase tracking-[0.2em]">
-                        Processing secure handshake...
+                        Verifying your email...
                     </p>
                 </motion.div>
 
@@ -120,26 +120,26 @@ const VerifyEmail = () => {
                     {verified ? (
                         <>
                             <p className="text-neutral-500 dark:text-neutral-400 text-sm leading-relaxed px-4">
-                                Authentication complete. Your account is active.
+                                Your email has been verified. Your account is now active.
                             </p>
                             <Link
                                 to='/panel/dashboard'
                                 className='group w-full bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white py-4 px-8 rounded-2xl transition-all duration-300 flex items-center justify-center gap-2 font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-emerald-500/20 active:scale-[0.98]'
                             >
-                                Enter Workspace <TbArrowRight className="group-hover:translate-x-1 transition-transform" />
+                                Go to Profile <TbArrowRight className="group-hover:translate-x-1 transition-transform" />
                             </Link>
                         </>
                     ) : (
                         <>
                             <p className="text-neutral-500 dark:text-neutral-400 text-sm leading-relaxed px-4">
-                                Error detecting valid handshake.
+                                We could not verify your email with this link.
                             </p>
                             <Link
                                 to='/email-verification'
                                 className='group w-full bg-linear-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white py-4 px-8 rounded-2xl transition-all duration-300 flex items-center justify-center gap-2 font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-blue-500/20 active:scale-[0.98]'
                             >
                                 <TbRefresh className="group-hover:rotate-180 transition-transform duration-500" />
-                                Resend Handshake Request
+                                Resend Verification Email
                             </Link>
                         </>
                     )}
@@ -147,7 +147,7 @@ const VerifyEmail = () => {
 
                 <motion.div variants={itemVariants} className="mt-10 pt-6 border-t border-neutral-200/50 dark:border-neutral-700/50 w-full">
                     <Link to="/signin" className="text-neutral-400 hover:text-indigo-500 font-bold text-[10px] uppercase tracking-widest transition-colors">
-                        Return to Authentication Hub
+                        Back to Sign In
                     </Link>
                 </motion.div>
             </motion.div>

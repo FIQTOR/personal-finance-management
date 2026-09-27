@@ -170,7 +170,7 @@ export default function SearchModal({
                             </p>
                         ) : isEmpty ? (
                             <p className="px-3 py-8 text-center text-sm text-neutral-400">
-                                No results found.
+                                No results found
                             </p>
                         ) : (
                             sections.map((section) => {

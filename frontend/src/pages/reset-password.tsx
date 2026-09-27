@@ -123,10 +123,10 @@ const ResetPassword = () => {
                             variants={itemVariants}
                             className='text-2xl font-black bg-linear-to-br from-rose-600 to-orange-600 dark:from-rose-400 dark:to-orange-400 bg-clip-text text-transparent tracking-tight'
                         >
-                            Session Expired
+                            Link Expired
                         </motion.h2>
                         <motion.p variants={itemVariants} className='text-neutral-500 dark:text-neutral-400 text-sm leading-relaxed'>
-                            The reset token is either invalid or expired.
+                            This reset link is invalid or has expired.
                         </motion.p>
                     </div>
 
@@ -135,13 +135,13 @@ const ResetPassword = () => {
                             onClick={() => navigate('/forgot-password')}
                             className='w-full px-6 py-4 bg-linear-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] transition-all duration-300 shadow-xl shadow-blue-500/20 active:scale-[0.98]'
                         >
-                            Request New Link
+                            Request a New Link
                         </button>
                     </motion.div>
 
                     <motion.div variants={itemVariants}>
                         <Link to="/signin" className="text-neutral-400 hover:text-indigo-500 font-bold text-[10px] uppercase tracking-widest transition-colors flex items-center gap-2">
-                            <TbArrowLeft size={16} /> Return to Hub
+                            <TbArrowLeft size={16} /> Back to Sign In
                         </Link>
                     </motion.div>
                 </motion.div>
@@ -174,7 +174,7 @@ const ResetPassword = () => {
                         Reset Password
                     </motion.h1>
                     <motion.p variants={itemVariants} className='text-neutral-500 dark:text-neutral-400 text-xs font-semibold uppercase tracking-widest'>
-                        Override Security Sequence
+                        Set a New Password
                     </motion.p>
                 </div>
 
@@ -195,7 +195,7 @@ const ResetPassword = () => {
 
                 <form onSubmit={handleSubmit} className='flex flex-col gap-6 relative z-10'>
                     <motion.div variants={itemVariants} className='flex flex-col gap-2 relative'>
-                        <label htmlFor="password" className='text-[10px] font-black uppercase tracking-[0.2em] text-neutral-400 pl-1'>New Master Key</label>
+                        <label htmlFor="password" className='text-[10px] font-black uppercase tracking-[0.2em] text-neutral-400 pl-1'>New Password</label>
                         <div className="group relative">
                             <TbLock className='absolute w-5 h-5 top-1/2 -translate-y-1/2 left-4 text-neutral-400 group-focus-within:text-blue-500 transition-colors' />
                             <input
@@ -219,7 +219,7 @@ const ResetPassword = () => {
                     </motion.div>
 
                     <motion.div variants={itemVariants} className='flex flex-col gap-2 relative'>
-                        <label htmlFor="password-confirm" className='text-[10px] font-black uppercase tracking-[0.2em] text-neutral-400 pl-1'>Confirm Sequence</label>
+                        <label htmlFor="password-confirm" className='text-[10px] font-black uppercase tracking-[0.2em] text-neutral-400 pl-1'>Confirm Password</label>
                         <div className='relative group'>
                             <TbLock className='absolute w-5 h-5 top-1/2 -translate-y-1/2 left-4 text-neutral-400 group-focus-within:text-blue-500 transition-colors' />
                             <input
@@ -227,7 +227,7 @@ const ResetPassword = () => {
                                 name="password-confirm"
                                 id="password-confirm"
                                 autoComplete='off'
-                                placeholder='Repeat Master Key'
+                                placeholder='Repeat new password'
                                 onChange={e => setPasswordConfirm(e.target.value)}
                                 className='w-full pl-12 pr-12 py-4 rounded-2xl bg-neutral-100/50 dark:bg-neutral-800/50 border border-neutral-200/50 dark:border-neutral-700/50 text-neutral-900 dark:text-white placeholder-neutral-400 dark:placeholder-neutral-500 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all font-medium text-sm'
                             />
@@ -243,14 +243,14 @@ const ResetPassword = () => {
 
                     <motion.div variants={itemVariants}>
                         <button className='w-full py-4 px-6 rounded-2xl bg-linear-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-blue-500/20 active:scale-[0.98] transition-all cursor-pointer'>
-                            Commit Changes
+                            Reset Password
                         </button>
                     </motion.div>
                 </form>
 
                 <motion.div variants={itemVariants} className="mt-2 pt-6 border-t border-neutral-200/50 dark:border-neutral-700/50 text-center">
                     <Link to="/signin" className="text-neutral-400 hover:text-indigo-500 font-bold text-[10px] uppercase tracking-widest transition-colors flex items-center justify-center gap-2">
-                        <TbArrowLeft size={16} /> Return to Access Hub
+                        <TbArrowLeft size={16} /> Back to Sign In
                     </Link>
                 </motion.div>
             </motion.div>

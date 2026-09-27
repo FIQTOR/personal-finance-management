@@ -12,6 +12,7 @@ import {
     TbWorld,
     TbWallet
 } from "react-icons/tb";
+import AppConfig from '@/config/AppConfig';
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useState } from "react";
@@ -95,7 +96,7 @@ const Footer = () => {
 
                         <div className="flex items-center gap-2 text-sm text-gray-500">
                             <TbHeart className="text-red-500" />
-                            <span>Powered by IARTY</span>
+                            <span>Powered by {AppConfig.appName}</span>
                         </div>
                     </motion.div>
 
@@ -221,14 +222,14 @@ const Footer = () => {
             {/* Bottom */}
             <div className="bg-gray-100 dark:bg-neutral-800 border-t border-gray-200 dark:border-neutral-700">
                 <div className="container mx-auto px-4 py-4 text-xs sm:text-sm text-gray-600 dark:text-neutral-400 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
-                    <span>© {currentYear} Personal Finance Management App. All rights reserved.</span>
+                    <span>© {currentYear} {AppConfig.appName}. All rights reserved.</span>
                     <div className="flex items-center gap-4">
                         <span className="px-2.5 py-1 bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 rounded-full font-mono text-xs font-semibold">
                             v1.X.X
                         </span>
                         <span className="flex items-center gap-1.5">
                             <TbHeart className="text-red-500" />
-                            Designed by IARTY
+                            Designed by {AppConfig.appName}
                         </span>
                     </div>
                 </div>
