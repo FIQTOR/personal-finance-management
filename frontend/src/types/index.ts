@@ -12,6 +12,12 @@ export interface Permission {
     description?: string;
 }
 
+/** Per-user preferences mirrored from the account (cross-device). */
+export interface UserPreferences {
+    theme?: 'light' | 'dark';
+    language?: string;
+}
+
 /** The authenticated user as stored in the Redux store. */
 export interface User {
     id: number;
@@ -24,6 +30,7 @@ export interface User {
     avatar_url?: string | null;
     created_at?: string;
     updated_at?: string;
+    preferences?: UserPreferences;
 }
 
 /** Standard API envelope used by every backend response. */

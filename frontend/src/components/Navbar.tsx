@@ -311,12 +311,41 @@ const Navbar = () => {
                                                 </motion.div>
                                             )}
                                         </div>
-                                        <button
+                                        <motion.button
                                             onClick={(e) => toggleTheme(e)}
-                                            className="p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+                                            whileTap={{ scale: 0.9, rotate: 15 }}
+                                            whileHover={{ scale: 1.08 }}
+                                            transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+                                            className="relative p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+                                            aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+                                            title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
                                         >
-                                            {theme === 'dark' ? <TbMoon className="w-5 h-5 text-blue-400" /> : <TbSun className="w-5 h-5 text-yellow-500" />}
-                                        </button>
+                                            <AnimatePresence mode="wait" initial={false}>
+                                                {theme === 'dark' ? (
+                                                    <motion.span
+                                                        key="moon"
+                                                        initial={{ opacity: 0, rotate: -90, scale: 0.5 }}
+                                                        animate={{ opacity: 1, rotate: 0, scale: 1 }}
+                                                        exit={{ opacity: 0, rotate: 90, scale: 0.5 }}
+                                                        transition={{ duration: 0.25, ease: 'easeOut' }}
+                                                        className="block"
+                                                    >
+                                                        <TbMoon className="w-5 h-5 text-blue-400" />
+                                                    </motion.span>
+                                                ) : (
+                                                    <motion.span
+                                                        key="sun"
+                                                        initial={{ opacity: 0, rotate: 90, scale: 0.5 }}
+                                                        animate={{ opacity: 1, rotate: 0, scale: 1 }}
+                                                        exit={{ opacity: 0, rotate: -90, scale: 0.5 }}
+                                                        transition={{ duration: 0.25, ease: 'easeOut' }}
+                                                        className="block"
+                                                    >
+                                                        <TbSun className="w-5 h-5 text-yellow-500" />
+                                                    </motion.span>
+                                                )}
+                                            </AnimatePresence>
+                                        </motion.button>
                                 </>
 
                                 <div className="lg:hidden">

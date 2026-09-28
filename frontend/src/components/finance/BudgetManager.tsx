@@ -3,6 +3,11 @@ import { Plus, Trash2, Edit2, AlertCircle, PieChart, Upload, FileUp, Search } fr
 import { TbTrashOff } from 'react-icons/tb';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { createBudget, updateBudget, deleteBudget, fetchBudgets } from '@/store/financeSlice';
+import { SkeletonCardGrid } from '@/components/Skeleton';
+import EmptyState from '@/components/EmptyState';
+import PeriodSelector from '@/components/PeriodSelector';
+import { readStoredPeriod, periodToDateRange, type PeriodValue } from '@/components/periodConfig';
+import BudgetActualChart from '@/components/finance/BudgetActualChart';
 import type { Budget } from '@/types/finance';
 import PanelSelect from '@/components/PanelSelect';
 import ExportMenu from '@/components/ExportMenu';
@@ -14,10 +19,14 @@ import { formatAmountWithCurrency } from '@/utils/currency';
 import apiClient from '@/services/apiClient';
 import type { ExportColumn } from '@/utils/export';
 
+const PERIOD_STORAGE_KEY = 'finance_period';
+
 export const BudgetManager: React.FC = () => {
   const dispatch = useAppDispatch();
   const { notify, confirm } = useNotification();
-  const { budgets, categories, transactions, defaultCurrency } = useAppSelector((state) => state.finance);
+  const { budgets, categories, transactions, defaultCurrency, loading } = useAppSelector((state) => state.finance);
+
+  const [period, setPeriod] = useState<PeriodValue>(() => readStoredPeriod(PERIOD_STORAGE_KEY));
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingBudget, setEditingBudget] = useState<Budget | null>(null);
@@ -118,14 +127,21 @@ export const BudgetManager: React.FC = () => {
   ];
 
   const filteredBudgets = useMemo(() => {
+    // Client-side period filter: the budgets endpoint returns everything, so we
+    // keep only budgets whose [start_date, end_date] OVERLAPS the selected
+    // period range (a budget is relevant if any part of it intersects the
+    // window: budget.start <= range.end && budget.end >= range.start).
+    const { start_date, end_date } = periodToDateRange(period);
+    const inPeriod = budgets.filter((b) => b.start_date <= end_date && b.end_date >= start_date);
+
     const q = search.trim().toLowerCase();
-    if (!q) return budgets;
-    return budgets.filter((b) =>
+    if (!q) return inPeriod;
+    return inPeriod.filter((b) =>
       [b.category?.name, b.currency, b.start_date, b.end_date, String(b.limit_amount)]
         .filter(Boolean)
         .some((field) => String(field).toLowerCase().includes(q))
     );
-  }, [budgets, search]);
+  }, [budgets, search, period]);
 
   return (
     <div className="space-y-6">
@@ -137,6 +153,12 @@ export const BudgetManager: React.FC = () => {
           <p className="text-sm text-gray-500 dark:text-neutral-400">Set monthly spending limits for each category</p>
         </div>
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <PeriodSelector
+            value={period}
+            onChange={setPeriod}
+            storageKey={PERIOD_STORAGE_KEY}
+            label="Budget period"
+          />
           <button type="button" onClick={() => setShowImport(true)}
             className="flex items-center gap-2 bg-indigo-600/90 backdrop-blur-md border border-indigo-400/40 text-white px-3 py-2 rounded-xl hover:bg-indigo-500 transition-all duration-300 shadow-lg text-sm">
             <FileUp className="w-4 h-4" /><span className="hidden sm:inline">Import</span>
@@ -178,8 +200,20 @@ export const BudgetManager: React.FC = () => {
         />
       </div>
 
+      <BudgetActualChart />
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filteredBudgets.map((b) => {
+        {loading && budgets.length === 0 ? (
+          <SkeletonCardGrid count={6} cols="grid-cols-1 md:grid-cols-2 lg:grid-cols-3" />
+        ) : filteredBudgets.length === 0 ? (
+          <div className="col-span-full">
+            <EmptyState
+              icon={<PieChart className="w-8 h-8" />}
+              title="No budgets in this period"
+              description="Try a wider period or create a new budget for a category."
+            />
+          </div>
+        ) : filteredBudgets.map((b) => {
           const spent = getSpentAmount(b);
           const limit = Number(b.limit_amount);
           const percentage = Math.min(Math.round((spent / limit) * 100), 100);

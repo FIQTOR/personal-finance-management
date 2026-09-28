@@ -5,7 +5,7 @@ import {
     TbHome, TbUsers, TbArrowLeft, TbChevronDown, TbShieldLock,
     TbKey, TbUserShield,
     TbWallet, TbMenu, TbX, TbSearch,
-    TbLayoutDashboard, TbReceipt, TbChartPie, TbTarget
+    TbLayoutDashboard, TbReceipt, TbChartPie, TbTarget, TbRepeat
 } from 'react-icons/tb'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import PanelSearch from '@/components/PanelSearch'
@@ -47,6 +47,7 @@ const sidebarItems: SidebarItem[] = [
             { name: 'Overview', href: '/panel/finance/overview', icon: TbLayoutDashboard, permission: 'view_dashboard' },
             { name: 'Transactions', href: '/panel/finance/transactions', icon: TbReceipt, permission: 'view_dashboard' },
             { name: 'Budgets', href: '/panel/finance/budgets', icon: TbChartPie, permission: 'view_dashboard' },
+            { name: 'Recurring', href: '/panel/finance/recurring', icon: TbRepeat, permission: 'view_dashboard' },
             { name: 'Financial Goals', href: '/panel/finance/goals', icon: TbTarget, permission: 'view_dashboard' }
         ]
     },

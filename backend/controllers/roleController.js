@@ -1,9 +1,6 @@
 // Role management controller.
 const { Op } = require('sequelize');
-const Role = require('../models/role');
-const Permission = require('../models/permission');
-const RolePermission = require('../models/rolePermission');
-const User = require('../models/user');
+const { Role, Permission, RolePermission, User } = require('../models');
 const AppError = require('../utils/AppError');
 const asyncHandler = require('../utils/asyncHandler');
 const { success } = require('../utils/response');

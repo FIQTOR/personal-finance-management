@@ -1,13 +1,14 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import type { PayloadAction } from '@reduxjs/toolkit';
 import apiClient from '@/services/apiClient';
-import type { Category, Transaction, Budget, Goal, ApiResponse, TransactionFilter } from '@/types/finance';
+import type { Category, Transaction, Budget, Goal, RecurringTransaction, ApiResponse, TransactionFilter } from '@/types/finance';
 
 interface FinanceState {
   categories: Category[];
   transactions: Transaction[];
   budgets: Budget[];
   goals: Goal[];
+  recurringTransactions: RecurringTransaction[];
   defaultCurrency: string;
   loading: boolean;
   error: string | null;
@@ -18,6 +19,7 @@ const initialState: FinanceState = {
   transactions: [],
   budgets: [],
   goals: [],
+  recurringTransactions: [],
   defaultCurrency: 'USD',
   loading: false,
   error: null
@@ -176,6 +178,69 @@ export const deleteGoal = createAsyncThunk('finance/deleteGoal', async (id: numb
   }
 });
 
+// Recurring Transactions Async Thunks
+export const fetchRecurringTransactions = createAsyncThunk('finance/fetchRecurringTransactions', async (_, { rejectWithValue }) => {
+  try {
+    const res = await apiClient.get<ApiResponse<RecurringTransaction[]>>(`/recurring-transactions`);
+    return res.data.data;
+  } catch (err: unknown) {
+    const errorMsg = (err as { response?: { data?: { message?: string } } }).response?.data?.message || 'Failed to fetch recurring transactions';
+    return rejectWithValue(errorMsg);
+  }
+});
+
+export const createRecurringTransaction = createAsyncThunk('finance/createRecurringTransaction', async (data: Partial<RecurringTransaction>, { rejectWithValue }) => {
+  try {
+    const res = await apiClient.post<ApiResponse<RecurringTransaction>>(`/recurring-transactions`, data);
+    return res.data.data;
+  } catch (err: unknown) {
+    const errorMsg = (err as { response?: { data?: { message?: string } } }).response?.data?.message || 'Failed to create recurring transaction';
+    return rejectWithValue(errorMsg);
+  }
+});
+
+export const updateRecurringTransaction = createAsyncThunk('finance/updateRecurringTransaction', async ({ id, data }: { id: number; data: Partial<RecurringTransaction> }, { rejectWithValue }) => {
+  try {
+    const res = await apiClient.put<ApiResponse<RecurringTransaction>>(`/recurring-transactions/${id}`, data);
+    return res.data.data;
+  } catch (err: unknown) {
+    const errorMsg = (err as { response?: { data?: { message?: string } } }).response?.data?.message || 'Failed to update recurring transaction';
+    return rejectWithValue(errorMsg);
+  }
+});
+
+export const deleteRecurringTransaction = createAsyncThunk('finance/deleteRecurringTransaction', async (id: number, { rejectWithValue }) => {
+  try {
+    await apiClient.delete<ApiResponse<{ id: number }>>(`/recurring-transactions/${id}`);
+    return id;
+  } catch (err: unknown) {
+    const errorMsg = (err as { response?: { data?: { message?: string } } }).response?.data?.message || 'Failed to delete recurring transaction';
+    return rejectWithValue(errorMsg);
+  }
+});
+
+/**
+ * Convenience alias used by the recurring manager / wrapper: fetch the list of
+ * recurring rules (mirrors `fetchTransactions`).
+ */
+export const fetchRecurring = fetchRecurringTransactions;
+
+/**
+ * Generate transactions for every due recurring rule, then refresh both the
+ * transactions and recurring lists so the UI reflects the new state.
+ */
+export const generateDueRecurring = createAsyncThunk('finance/generateDueRecurring', async (_, { dispatch, rejectWithValue }) => {
+  try {
+    const res = await apiClient.post<ApiResponse<{ createdCount: number }>>(`/recurring-transactions/generate`);
+    await dispatch(fetchTransactions());
+    await dispatch(fetchRecurringTransactions());
+    return res.data.data;
+  } catch (err: unknown) {
+    const errorMsg = (err as { response?: { data?: { message?: string } } }).response?.data?.message || 'Failed to generate due transactions';
+    return rejectWithValue(errorMsg);
+  }
+});
+
 const financeSlice = createSlice({
   name: 'finance',
   initialState,
@@ -183,8 +248,16 @@ const financeSlice = createSlice({
   extraReducers: (builder) => {
     builder
       // Categories
+      .addCase(fetchCategories.pending, (state) => {
+        state.loading = true;
+      })
       .addCase(fetchCategories.fulfilled, (state, action: PayloadAction<Category[]>) => {
+        state.loading = false;
         state.categories = action.payload;
+      })
+      .addCase(fetchCategories.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
       })
       .addCase(createCategory.fulfilled, (state, action: PayloadAction<Category>) => {
         state.categories.push(action.payload);
@@ -212,8 +285,16 @@ const financeSlice = createSlice({
         state.transactions = state.transactions.filter(t => t.id !== action.payload);
       })
       // Budgets
+      .addCase(fetchBudgets.pending, (state) => {
+        state.loading = true;
+      })
       .addCase(fetchBudgets.fulfilled, (state, action: PayloadAction<Budget[]>) => {
+        state.loading = false;
         state.budgets = action.payload;
+      })
+      .addCase(fetchBudgets.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
       })
       .addCase(createBudget.fulfilled, (state, action: PayloadAction<Budget>) => {
         state.budgets.push(action.payload);
@@ -226,8 +307,16 @@ const financeSlice = createSlice({
         state.budgets = state.budgets.filter(b => b.id !== action.payload);
       })
       // Goals
+      .addCase(fetchGoals.pending, (state) => {
+        state.loading = true;
+      })
       .addCase(fetchGoals.fulfilled, (state, action: PayloadAction<Goal[]>) => {
+        state.loading = false;
         state.goals = action.payload;
+      })
+      .addCase(fetchGoals.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
       })
       .addCase(createGoal.fulfilled, (state, action: PayloadAction<Goal>) => {
         state.goals.push(action.payload);
@@ -238,6 +327,38 @@ const financeSlice = createSlice({
       })
       .addCase(deleteGoal.fulfilled, (state, action: PayloadAction<number>) => {
         state.goals = state.goals.filter(g => g.id !== action.payload);
+      })
+      // Recurring Transactions
+      .addCase(fetchRecurringTransactions.pending, (state) => {
+        state.loading = true;
+      })
+      .addCase(fetchRecurringTransactions.fulfilled, (state, action: PayloadAction<RecurringTransaction[]>) => {
+        state.loading = false;
+        state.recurringTransactions = action.payload;
+      })
+      .addCase(fetchRecurringTransactions.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+      .addCase(createRecurringTransaction.fulfilled, (state, action: PayloadAction<RecurringTransaction>) => {
+        state.recurringTransactions.unshift(action.payload);
+      })
+      .addCase(updateRecurringTransaction.fulfilled, (state, action: PayloadAction<RecurringTransaction>) => {
+        const index = state.recurringTransactions.findIndex(r => r.id === action.payload.id);
+        if (index !== -1) state.recurringTransactions[index] = action.payload;
+      })
+      .addCase(deleteRecurringTransaction.fulfilled, (state, action: PayloadAction<number>) => {
+        state.recurringTransactions = state.recurringTransactions.filter(r => r.id !== action.payload);
+      })
+      .addCase(generateDueRecurring.pending, (state) => {
+        state.loading = true;
+      })
+      .addCase(generateDueRecurring.fulfilled, (state) => {
+        state.loading = false;
+      })
+      .addCase(generateDueRecurring.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
       })
       .addCase(fetchAppSettings.fulfilled, (state, action: PayloadAction<string>) => {
         state.defaultCurrency = action.payload;

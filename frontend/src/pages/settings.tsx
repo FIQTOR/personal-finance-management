@@ -1,8 +1,10 @@
-import { TbUser, TbShieldCheck, TbLogout, TbActivity, TbSettings } from 'react-icons/tb';
+import { TbUser, TbShieldCheck, TbLogout, TbActivity, TbSettings, TbListSearch, TbAdjustments } from 'react-icons/tb';
 import { useEffect, useState } from 'react';
 import AccountMenu from '@/components/settings/account';
 import PermissionsMenu from '@/components/settings/permissions';
 import ActivitiesMenu from '@/components/settings/activities';
+import AuditLogMenu from '@/components/settings/auditLog';
+import PreferencesMenu from '@/components/settings/preferences';
 import { useAppDispatch } from '@/store/hooks';
 import { signOut } from '@/store/authSlice';
 import { useNavigate } from 'react-router-dom';
@@ -10,14 +12,18 @@ import AppConfig from '@/config/AppConfig';
 
 const MENU_ITEMS = [
     { icon: TbUser, label: 'Account', id: 'account', description: 'Manage your personal information and profile picture' },
+    { icon: TbAdjustments, label: 'Preferences', id: 'preferences', description: 'Sync your theme and language across all your devices' },
     { icon: TbShieldCheck, label: 'Permissions', id: 'permissions', description: 'View assigned access control roles and security permissions' },
     { icon: TbActivity, label: 'Activities', id: 'activities', description: 'Audit your login history and system action logs' },
+    { icon: TbListSearch, label: 'Audit Log', id: 'audit-log', description: 'Search, filter and export the full audit trail of recorded activity' },
 ];
 
 const MENU_COMPONENTS = {
     account: <AccountMenu />,
+    preferences: <PreferencesMenu />,
     permissions: <PermissionsMenu />,
     activities: <ActivitiesMenu />,
+    'audit-log': <AuditLogMenu />,
 };
 
 export default function Settings() {

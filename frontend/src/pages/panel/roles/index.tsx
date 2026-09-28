@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { TbShieldCheck, TbEdit, TbTrash, TbPlus, TbX, TbTrashOff, TbFileUpload, TbUpload } from 'react-icons/tb'
 import StaticDataTable from '@/components/StaticDataTable'
+import { SkeletonBlock } from '@/components/Skeleton'
 import PanelCheckbox from '@/components/PanelCheckbox'
 import ExportMenu from '@/components/ExportMenu'
 import BulkInsertModal from '@/components/BulkInsertModal'
@@ -59,6 +60,7 @@ export default function RoleManagement() {
         permissions: [] as number[]
     })
     const [availablePermissions, setAvailablePermissions] = useState<Permission[]>([])
+    const [permissionsLoading, setPermissionsLoading] = useState(false)
     const [modalLoading, setModalLoading] = useState(false)
     const [modalError, setModalError] = useState<string | null>(null)
 
@@ -93,10 +95,13 @@ export default function RoleManagement() {
 
     const fetchAvailablePermissions = async () => {
         try {
+            setPermissionsLoading(true)
             const res = await apiClient.get(`/permissions`)
             setAvailablePermissions(res.data.data.permissions || [])
         } catch (err) {
             console.error('Failed to fetch permissions:', err)
+        } finally {
+            setPermissionsLoading(false)
         }
     }
 
@@ -485,17 +490,31 @@ export default function RoleManagement() {
                                     Assign Permissions
                                 </label>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto p-2 bg-neutral-50 dark:bg-neutral-800/40 rounded-xl border border-neutral-200 dark:border-neutral-800">
-                                    {availablePermissions.map((perm) => (
-                                        <PanelCheckbox
-                                            key={perm.id}
-                                            checked={formData.permissions.includes(perm.id)}
-                                            onChange={() => handlePermissionToggle(perm.id)}
-                                            label={perm.name}
-                                            className="p-2 bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200 dark:border-neutral-700"
-                                        />
-                                    ))}
-                                    {availablePermissions.length === 0 && (
-                                        <p className="text-xs text-neutral-400 col-span-2 text-center py-2">No permissions found</p>
+                                    {permissionsLoading ? (
+                                        Array.from({ length: 6 }).map((_, i) => (
+                                            <div
+                                                key={`perm-sk-${i}`}
+                                                className="flex items-center gap-2 p-2 bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200 dark:border-neutral-700"
+                                            >
+                                                <SkeletonBlock className="w-4 h-4 rounded" />
+                                                <SkeletonBlock className="h-3 flex-1" />
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <>
+                                            {availablePermissions.map((perm) => (
+                                                <PanelCheckbox
+                                                    key={perm.id}
+                                                    checked={formData.permissions.includes(perm.id)}
+                                                    onChange={() => handlePermissionToggle(perm.id)}
+                                                    label={perm.name}
+                                                    className="p-2 bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200 dark:border-neutral-700"
+                                                />
+                                            ))}
+                                            {availablePermissions.length === 0 && (
+                                                <p className="text-xs text-neutral-400 col-span-2 text-center py-2">No permissions found</p>
+                                            )}
+                                        </>
                                     )}
                                 </div>
                             </div>

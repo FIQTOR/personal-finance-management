@@ -13,6 +13,7 @@ const categoryController = require('../controllers/categoryController');
 const transactionController = require('../controllers/transactionController');
 const budgetController = require('../controllers/budgetController');
 const goalController = require('../controllers/goalController');
+const recurringTransactionController = require('../controllers/recurringTransactionController');
 const VerifyToken = require('../middlewares/verifyToken');
 const validate = require('../middlewares/validate');
 const { financeSchemas } = require('../validators/schemas');
@@ -55,5 +56,15 @@ router.get('/goals/:id', VerifyToken, goalController.getGoal);
 router.post('/goals', VerifyToken, validate(financeSchemas.goal), goalController.createGoal);
 router.put('/goals/:id', VerifyToken, validate(financeSchemas.goal), goalController.updateGoal);
 router.delete('/goals/:id', VerifyToken, goalController.deleteGoal);
+
+// --- Recurring transactions (generate / bulk registered BEFORE :id) ---------
+router.get('/recurring-transactions', VerifyToken, recurringTransactionController.getRecurringTransactions);
+router.post('/recurring-transactions/generate', VerifyToken, recurringTransactionController.generateDueTransactions);
+router.post('/recurring-transactions/bulk', VerifyToken, validate(financeSchemas.recurringTransactionBulk), recurringTransactionController.createBulkRecurringTransactions);
+router.delete('/recurring-transactions/bulk-delete', VerifyToken, recurringTransactionController.bulkDeleteRecurringTransactions);
+router.get('/recurring-transactions/:id', VerifyToken, recurringTransactionController.getRecurringTransaction);
+router.post('/recurring-transactions', VerifyToken, validate(financeSchemas.recurringTransaction), recurringTransactionController.createRecurringTransaction);
+router.put('/recurring-transactions/:id', VerifyToken, validate(financeSchemas.recurringTransaction), recurringTransactionController.updateRecurringTransaction);
+router.delete('/recurring-transactions/:id', VerifyToken, recurringTransactionController.deleteRecurringTransaction);
 
 module.exports = router;

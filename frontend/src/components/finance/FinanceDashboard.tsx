@@ -1,11 +1,16 @@
 import { Wallet, ArrowUpRight, ArrowDownRight, PieChart, Target } from 'lucide-react';
 import { useAppSelector } from '@/store/hooks';
 import AnimatedNumber from '@/components/AnimatedNumber';
+import { SkeletonCardGrid, SkeletonContainer, SkeletonBlock } from '@/components/Skeleton';
+import EmptyState from '@/components/EmptyState';
+import BudgetActualChart from '@/components/finance/BudgetActualChart';
 import { getCurrencySymbol } from '@/utils/currency';
 
 export const FinanceDashboard: React.FC = () => {
-  const { transactions, budgets, goals, defaultCurrency } = useAppSelector((state) => state.finance);
+  const { transactions, budgets, goals, defaultCurrency, loading } = useAppSelector((state) => state.finance);
   const currencySymbol = getCurrencySymbol(defaultCurrency);
+
+  const isLoading = loading && transactions.length === 0 && budgets.length === 0 && goals.length === 0;
 
   const totalIncome = transactions
     .filter((t) => t.type === 'income')
@@ -29,6 +34,24 @@ export const FinanceDashboard: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {isLoading ? (
+        <SkeletonContainer>
+          {/* Metrics Row */}
+          <SkeletonCardGrid count={4} />
+          {/* Overview Card */}
+          <div className="bg-white dark:bg-neutral-800/60 p-6 rounded-2xl border border-gray-100 dark:border-neutral-800 shadow-xs flex flex-col md:flex-row items-center justify-between gap-4">
+            <div className="space-y-2">
+              <SkeletonBlock className="h-5 w-48" />
+              <SkeletonBlock className="h-4 w-64" />
+            </div>
+            <div className="flex gap-2">
+              <SkeletonBlock className="h-8 w-24 rounded-xl" />
+              <SkeletonBlock className="h-8 w-24 rounded-xl" />
+            </div>
+          </div>
+        </SkeletonContainer>
+      ) : (
+      <>
       {/* Metrics Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Total Balance */}
@@ -84,6 +107,9 @@ export const FinanceDashboard: React.FC = () => {
         </div>
       </div>
 
+      {/* Budget vs Actual monthly chart (FEAT-6) */}
+      <BudgetActualChart />
+
       {/* Overview Card */}
       <div className="bg-white dark:bg-neutral-800/60 p-6 rounded-2xl border border-gray-100 dark:border-neutral-800 shadow-xs flex flex-col md:flex-row items-center justify-between gap-4">
         <div className="space-y-1">
@@ -95,13 +121,19 @@ export const FinanceDashboard: React.FC = () => {
           </p>
         </div>
         <div className="flex gap-2">
-          {goals.slice(0, 3).map((g) => (
-            <div key={g.id} className="px-3 py-1.5 bg-gray-50 dark:bg-neutral-900 rounded-xl text-xs font-medium border border-gray-100 dark:border-neutral-800 text-gray-700 dark:text-neutral-300">
-              {g.name}: {g.currency || defaultCurrency} {Number(g.current_amount).toLocaleString()} / {g.currency || defaultCurrency} {Number(g.target_amount).toLocaleString()}
-            </div>
-          ))}
+          {goals.length === 0 ? (
+            <EmptyState compact title="No goals yet" description="Set a savings goal to track progress here." />
+          ) : (
+            goals.slice(0, 3).map((g) => (
+              <div key={g.id} className="px-3 py-1.5 bg-gray-50 dark:bg-neutral-900 rounded-xl text-xs font-medium border border-gray-100 dark:border-neutral-800 text-gray-700 dark:text-neutral-300">
+                {g.name}: {g.currency || defaultCurrency} {Number(g.current_amount).toLocaleString()} / {g.currency || defaultCurrency} {Number(g.target_amount).toLocaleString()}
+              </div>
+            ))
+          )}
         </div>
       </div>
+      </>
+      )}
     </div>
   );
 };

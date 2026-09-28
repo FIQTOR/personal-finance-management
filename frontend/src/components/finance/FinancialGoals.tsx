@@ -1,8 +1,13 @@
 import { useState, useMemo } from 'react';
-import { Target, Plus, Trash2, Edit2, CheckCircle2, Upload, FileUp, Search } from 'lucide-react';
+import { Target, Plus, Trash2, Edit2, CheckCircle2, Upload, FileUp, Search, TrendingUp, TrendingDown } from 'lucide-react';
 import { TbTrashOff } from 'react-icons/tb';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { createGoal, updateGoal, deleteGoal, fetchGoals } from '@/store/financeSlice';
+import { SkeletonCardGrid } from '@/components/Skeleton';
+import EmptyState from '@/components/EmptyState';
+import PeriodSelector from '@/components/PeriodSelector';
+import { readStoredPeriod, periodToDateRange, type PeriodValue } from '@/components/periodConfig';
+import { forecastGoal } from '@/utils/forecast';
 import type { Goal } from '@/types/finance';
 import PanelSelect from '@/components/PanelSelect';
 import ExportMenu from '@/components/ExportMenu';
@@ -13,11 +18,17 @@ import { getErrorMessage } from '@/utils/error';
 import { formatAmountWithCurrency } from '@/utils/currency';
 import apiClient from '@/services/apiClient';
 import type { ExportColumn } from '@/utils/export';
+import { useLanguage } from '@/context/useLanguage';
+
+const PERIOD_STORAGE_KEY = 'finance_period';
 
 export const FinancialGoals: React.FC = () => {
   const dispatch = useAppDispatch();
   const { notify, confirm } = useNotification();
-  const { goals, defaultCurrency } = useAppSelector((state) => state.finance);
+  const { t } = useLanguage();
+  const { goals, defaultCurrency, loading } = useAppSelector((state) => state.finance);
+
+  const [period, setPeriod] = useState<PeriodValue>(() => readStoredPeriod(PERIOD_STORAGE_KEY));
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
@@ -108,14 +119,21 @@ export const FinancialGoals: React.FC = () => {
   ];
 
   const filteredGoals = useMemo(() => {
+    // Client-side period filter: the goals endpoint returns everything, so we
+    // keep goals whose `deadline` falls within the selected period OR is still
+    // in the future beyond the range (i.e. deadline >= range.start). A goal
+    // whose deadline already passed before the window is considered inactive.
+    const { start_date } = periodToDateRange(period);
+    const inPeriod = goals.filter((g) => (g.deadline || '') >= start_date);
+
     const q = search.trim().toLowerCase();
-    if (!q) return goals;
-    return goals.filter((g) =>
+    if (!q) return inPeriod;
+    return inPeriod.filter((g) =>
       [g.name, g.currency, g.deadline, String(g.target_amount), String(g.current_amount)]
         .filter(Boolean)
         .some((field) => String(field).toLowerCase().includes(q))
     );
-  }, [goals, search]);
+  }, [goals, search, period]);
 
   return (
     <div className="space-y-6">
@@ -127,6 +145,12 @@ export const FinancialGoals: React.FC = () => {
           <p className="text-sm text-gray-500 dark:text-neutral-400">Track savings targets and milestone progress</p>
         </div>
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <PeriodSelector
+            value={period}
+            onChange={setPeriod}
+            storageKey={PERIOD_STORAGE_KEY}
+            label="Goal period"
+          />
           <button type="button" onClick={() => setShowImport(true)}
             className="flex items-center gap-2 bg-indigo-600/90 backdrop-blur-md border border-indigo-400/40 text-white px-3 py-2 rounded-xl hover:bg-indigo-500 transition-all duration-300 shadow-lg text-sm">
             <FileUp className="w-4 h-4" /><span className="hidden sm:inline">Import</span>
@@ -169,11 +193,31 @@ export const FinancialGoals: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filteredGoals.map((g) => {
+        {loading && goals.length === 0 ? (
+          <SkeletonCardGrid count={6} cols="grid-cols-1 md:grid-cols-2 lg:grid-cols-3" />
+        ) : filteredGoals.length === 0 ? (
+          <div className="col-span-full">
+            <EmptyState
+              icon={<Target className="w-8 h-8" />}
+              title="No goals in this period"
+              description="Try a wider period or create a new savings goal."
+            />
+          </div>
+        ) : filteredGoals.map((g) => {
           const target = Number(g.target_amount);
           const current = Number(g.current_amount);
           const percentage = Math.min(Math.round((current / target) * 100), 100);
           const isCompleted = current >= target;
+          const forecast = forecastGoal(g);
+          // Days the projection overshoots the deadline (only meaningful when behind).
+          const behindDays = !forecast.completed && !forecast.onTrack && forecast.projectedDate && g.deadline
+            ? Math.max(Math.round((new Date(forecast.projectedDate).getTime() - new Date(g.deadline).getTime()) / (1000 * 60 * 60 * 24)), 1)
+            : 0;
+          const badge = forecast.completed
+            ? { label: t('achieved'), cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400', icon: <CheckCircle2 className="w-3 h-3" /> }
+            : forecast.onTrack
+              ? { label: t('onTrack'), cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400', icon: <TrendingUp className="w-3 h-3" /> }
+              : { label: behindDays > 0 ? `${t('behind')} ${behindDays}d` : t('behind'), cls: 'bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-400', icon: <TrendingDown className="w-3 h-3" /> };
 
           return (
             <div key={g.id}
@@ -221,6 +265,28 @@ export const FinancialGoals: React.FC = () => {
                 </div>
                 <div className="flex justify-end mt-1 text-xs text-emerald-600 dark:text-emerald-400 font-bold">
                   {percentage}% Completed
+                </div>
+              </div>
+
+              {/* FEAT-8: savings goal forecast */}
+              <div className="pt-1 border-t border-gray-100 dark:border-neutral-800 space-y-2">
+                <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${badge.cls}`}>
+                  {badge.icon}
+                  {badge.label}
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <p className="text-gray-400 dark:text-neutral-500">{t('projectedCompletion')}</p>
+                    <p className="font-medium text-gray-700 dark:text-neutral-200">
+                      {forecast.projectedDate ?? '—'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-gray-400 dark:text-neutral-500">{t('requiredMonthly')}</p>
+                    <p className="font-medium text-gray-700 dark:text-neutral-200">
+                      {formatAmountWithCurrency(forecast.requiredMonthly, g.currency)}
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>

@@ -1,7 +1,7 @@
 
 
 import { TbUser, TbMail, TbLock, TbShieldCheck, TbKey, TbCheck, TbX, TbPencil, TbPlus, TbArrowLeft } from 'react-icons/tb'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import AppConfig from '@/config/AppConfig'
 import ReactCrop from 'react-image-crop'
 import type { Crop } from 'react-image-crop'
@@ -12,11 +12,13 @@ import PanelSelect from '@/components/PanelSelect'
 import PanelCheckbox from '@/components/PanelCheckbox'
 import { useNotification } from '@/context/useNotification'
 import { getErrorMessage } from '@/utils/error'
+import { SkeletonBlock } from '@/components/Skeleton'
 
 export default function AddUserPage() {
     const navigate = useNavigate();
     const { notify } = useNotification();
     const [roles, setRoles] = useState<Array<{ id: number; name: string }>>([]);
+    const [rolesLoading, setRolesLoading] = useState(true);
     const [formData, setFormData] = useState({
         name: '',
         email: '',
@@ -111,8 +113,9 @@ export default function AddUserPage() {
             setTempImage(null);
         }
     };
-    const getRoles = async () => {
+    const getRoles = useCallback(async () => {
         try {
+            setRolesLoading(true);
             const resRole = await apiClient.get(`/roles`);
             setRoles(resRole.data.data.roles);
             if (resRole.data.data.roles.length > 0) {
@@ -120,13 +123,15 @@ export default function AddUserPage() {
             }
         } catch (error) {
             notify(getErrorMessage(error, 'Failed to load roles'), 'error');
+        } finally {
+            setRolesLoading(false);
         }
-    }
+    }, [notify]);
 
     useEffect(() => {
         document.title = `Add New User ${AppConfig.exTitle}`
         getRoles();
-    }, []);
+    }, [getRoles]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -281,6 +286,7 @@ export default function AddUserPage() {
                                             placeholder="Select role"
                                             options={roles.map(role => ({ value: role.id, label: role.name }))}
                                         />
+                                        {rolesLoading && <SkeletonBlock className="mt-2 h-10 w-full rounded-lg" />}
                                     </div>
 
                                     <div className="relative group">

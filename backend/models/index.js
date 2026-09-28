@@ -26,7 +26,9 @@ const Category = require('./category');
 const Transaction = require('./transaction');
 const Budget = require('./budget');
 const Goal = require('./goal');
+const RecurringTransaction = require('./recurringTransaction');
 const AppSetting = require('./appSetting');
+const UserPreference = require('./userPreference');
 
 module.exports = {
     sequelize,
@@ -43,5 +45,7 @@ module.exports = {
     Transaction,
     Budget,
     Goal,
+    RecurringTransaction,
     AppSetting,
+    UserPreference,
 };

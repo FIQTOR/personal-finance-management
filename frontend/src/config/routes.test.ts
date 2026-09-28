@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveRouteAccess, getRequiredPermissionForPath, isValidPanelRoute } from '@/config/routes';
+import { resolveRouteAccess, getRequiredPermissionForPath, isValidPanelRoute, ROUTE_RULES } from '@/config/routes';
 import type { User } from '@/types';
 
 const guest: User | null = null;
@@ -35,5 +35,29 @@ describe('config/routes.resolveRouteAccess', () => {
 
     it('allows unknown routes', () => {
         expect(resolveRouteAccess('/some-public-page', guest).action).toBe('allow');
+    });
+});
+
+describe('config/routes permission matrix', () => {
+    it('declares at least one route rule', () => {
+        expect(ROUTE_RULES.length).toBeGreaterThan(0);
+    });
+
+    it.each(ROUTE_RULES.map((rule) => [rule.pathPrefix, rule.permission] as const))(
+        'getRequiredPermissionForPath(%s) returns the declared permission (%s)',
+        (pathPrefix, permission) => {
+            expect(getRequiredPermissionForPath(pathPrefix)).toBe(permission);
+        }
+    );
+
+    it.each(ROUTE_RULES.filter((rule) => rule.permission).map((rule) => [rule.pathPrefix] as const))(
+        'isValidPanelRoute(%s) is true for every panel rule',
+        (pathPrefix) => {
+            expect(isValidPanelRoute(pathPrefix)).toBe(true);
+        }
+    );
+
+    it('isValidPanelRoute is false for an unknown panel route', () => {
+        expect(isValidPanelRoute('/panel/xyz')).toBe(false);
     });
 });

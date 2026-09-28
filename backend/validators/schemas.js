@@ -161,6 +161,24 @@ const financeSchemas = {
         deadline: date({ required: true }),
     }),
 
+    recurringTransaction: withCheck(object({
+        // Optional: `null`/omitted means "uncategorized" (matches DB allowNull).
+        category_id: number({ allowNull: true }),
+        amount: number({ required: true, positive: true }),
+        currency: string({ min: 3, max: 10 }),
+        type: oneOf(['income', 'expense'], { required: true }),
+        frequency: oneOf(['daily', 'weekly', 'monthly', 'yearly'], { required: true }),
+        interval_count: number({ min: 1 }),
+        start_date: date({ required: true }),
+        end_date: date({ allowNull: true }),
+        notes: string({ max: 1000 }),
+        is_active: boolean(),
+    }), (value) => (
+        value.start_date && value.end_date && value.end_date < value.start_date
+            ? 'end_date must be on or after start_date'
+            : null
+    )),
+
     // --- Bulk inserts: expect `{ items: [...] }` with per-item validation. ---
     categoryBulk: object({
         items: bulkItems(object({
@@ -200,6 +218,26 @@ const financeSchemas = {
             currency: string({ min: 3, max: 10 }),
             deadline: date({ required: true }),
         })),
+    }),
+
+    recurringTransactionBulk: withCheck(object({
+        items: bulkItems(object({
+            category_id: optionalId(),
+            amount: number({ required: true, positive: true }),
+            currency: string({ min: 3, max: 10 }),
+            type: oneOf(['income', 'expense'], { required: true }),
+            frequency: oneOf(['daily', 'weekly', 'monthly', 'yearly'], { required: true }),
+            interval_count: number({ min: 1 }),
+            start_date: date({ required: true }),
+            end_date: date({ allowNull: true }),
+            notes: string({ max: 1000 }),
+            is_active: boolean(),
+        })),
+    }), (value) => {
+        const bad = (value.items || []).find(
+            (item) => item && item.start_date && item.end_date && item.end_date < item.start_date
+        );
+        return bad ? 'end_date must be on or after start_date' : null;
     }),
 };
 

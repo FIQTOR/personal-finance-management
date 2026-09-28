@@ -71,6 +71,14 @@ export const PANEL_PAGES: PanelPage[] = [
         kind: 'page',
     },
     {
+        label: 'Recurring Transactions',
+        href: '/panel/finance/recurring',
+        category: 'Finance',
+        permission: 'view_dashboard',
+        keywords: ['recurring', 'berulang', 'repeat', 'subscription', 'langganan', 'schedule', 'jadwal'],
+        kind: 'page',
+    },
+    {
         label: 'Financial Goals',
         href: '/panel/finance/goals',
         category: 'Finance',

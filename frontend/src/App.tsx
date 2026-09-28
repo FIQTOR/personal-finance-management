@@ -9,6 +9,7 @@ import './App.css'
 import LoadingPage from './components/LoadingPage';
 import { NotificationContainer } from './components/Notification';
 import PanelLayout from './layouts/PanelLayout';
+import PreferencesSync from './components/PreferencesSync';
 
 function AppRoutes() {
   const element = useRoutes(routes);
@@ -41,6 +42,7 @@ const LayoutWrapper = ({ children }: { children: React.ReactNode }) => {
 function App() {
   return (
     <Router>
+      <PreferencesSync />
       <AuthMiddleware>
         <LayoutWrapper>
           <Suspense fallback={

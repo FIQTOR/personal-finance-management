@@ -13,6 +13,7 @@ const activityRoutes = require('./activityRoutes');
 const analyticsRoutes = require('./analyticsRoutes');
 const financeRoutes = require('./financeRoutes');
 const appSettingRoutes = require('./appSettingRoutes');
+const userPreferenceRoutes = require('./userPreferenceRoutes');
 const userController = require('../controllers/userController');
 const VerifyToken = require('../middlewares/verifyToken');
 const checkPermission = require('../middlewares/checkPermission');
@@ -37,6 +38,7 @@ apiRouter.use('/permissions', permissionRoutes);
 apiRouter.use('/', activityRoutes);
 apiRouter.use('/analytics', analyticsRoutes);
 apiRouter.use('/', appSettingRoutes);
+apiRouter.use('/', userPreferenceRoutes);
 apiRouter.use('/', financeRoutes);
 
 module.exports = apiRouter;

@@ -12,6 +12,11 @@
  * no duplicated path list across components.
  */
 import type { User } from '@/types';
+import { hasPermission, SUPER_PERMISSION } from '@/config/permissions';
+
+// Re-export the pure permission helpers from the central route config so
+// consumers can import everything route/permission related from one place.
+export { hasPermission, SUPER_PERMISSION };
 
 export interface RouteRule {
     /** Path prefix this rule applies to. */
@@ -46,6 +51,7 @@ export const ROUTE_RULES: RouteRule[] = [
     // Panel routes (permission checked).
     { pathPrefix: '/panel/dashboard', requiresAuth: true, requiresVerified: true, panelOnly: true, permission: 'view_dashboard' },
     { pathPrefix: '/panel/finance', requiresAuth: true, requiresVerified: true, panelOnly: true, permission: 'view_dashboard' },
+    { pathPrefix: '/panel/finance/recurring', requiresAuth: true, requiresVerified: true, panelOnly: true, permission: 'view_dashboard' },
     { pathPrefix: '/panel/users/add', requiresAuth: true, requiresVerified: true, panelOnly: true, permission: 'manage_users' },
     { pathPrefix: '/panel/users', requiresAuth: true, requiresVerified: true, panelOnly: true, permission: 'manage_users' },
     { pathPrefix: '/panel/roles/permissions/add', requiresAuth: true, requiresVerified: true, panelOnly: true, permission: 'manage_roles' },

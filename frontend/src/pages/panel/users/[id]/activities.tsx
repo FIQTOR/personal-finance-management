@@ -4,6 +4,7 @@ import AppConfig from '@/config/AppConfig';
 import NotFound from '@/components/NotFound';
 import apiClient from '@/services/apiClient';
 import { useParams } from 'react-router-dom';
+import { SkeletonBlock } from '@/components/Skeleton';
 
 interface Activity {
     id: number;
@@ -81,16 +82,16 @@ const MyActivity = () => {
     }, [getUser, fetchActivities]);
 
     if (isLoading) return (
-        <div className="p-4 sm:p-6 relative h-full animate-pulse">
+        <div className="p-4 sm:p-6 relative h-full">
             <div className="w-full relative">
-                <div className="h-9 w-64 rounded-lg bg-neutral-200 dark:bg-neutral-800 mb-6 sm:mb-8" />
+                <SkeletonBlock className="h-9 w-64 mb-6 sm:mb-8" />
                 <div className="backdrop-blur-xl bg-white/70 dark:bg-neutral-800/70 p-4 sm:p-6 rounded-2xl shadow-lg border border-white/50 dark:border-neutral-700/50 mb-6">
                     <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
-                        <div className="w-16 sm:w-20 aspect-square rounded-full bg-neutral-200 dark:bg-neutral-800" />
+                        <SkeletonBlock className="w-16 sm:w-20 aspect-square rounded-full" />
                         <div className="space-y-2 text-center sm:text-left">
-                            <div className="h-5 w-40 rounded bg-neutral-200 dark:bg-neutral-800 mx-auto sm:mx-0" />
-                            <div className="h-4 w-52 rounded bg-neutral-200 dark:bg-neutral-800 mx-auto sm:mx-0" />
-                            <div className="h-3 w-28 rounded bg-neutral-200 dark:bg-neutral-800 mx-auto sm:mx-0" />
+                            <SkeletonBlock className="h-5 w-40 mx-auto sm:mx-0" />
+                            <SkeletonBlock className="h-4 w-52 mx-auto sm:mx-0" />
+                            <SkeletonBlock className="h-3 w-28 mx-auto sm:mx-0" />
                         </div>
                     </div>
                 </div>
@@ -98,8 +99,8 @@ const MyActivity = () => {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
                         {Array.from({ length: 2 }).map((_, i) => (
                             <div key={i} className="space-y-2">
-                                <div className="h-4 w-24 rounded bg-neutral-200 dark:bg-neutral-800" />
-                                <div className="h-12 w-full rounded-lg bg-neutral-200 dark:bg-neutral-800" />
+                                <SkeletonBlock className="h-4 w-24" />
+                                <SkeletonBlock className="h-12 w-full rounded-lg" />
                             </div>
                         ))}
                     </div>
@@ -107,15 +108,13 @@ const MyActivity = () => {
                         {Array.from({ length: 4 }).map((_, i) => (
                             <div key={i} className="backdrop-blur-sm bg-white/50 dark:bg-neutral-800/50 p-3 sm:p-4 rounded-lg border border-white/50 dark:border-neutral-700/50">
                                 <div className="flex items-start gap-3 sm:gap-4">
-                                    <div className="rounded-full p-2 sm:p-3 bg-neutral-200 dark:bg-neutral-800 shrink-0">
-                                        <div className="h-5 w-5 sm:h-6 sm:w-6" />
-                                    </div>
+                                    <SkeletonBlock className="rounded-full p-2 sm:p-3 w-9 h-9 sm:w-12 sm:h-12 shrink-0" />
                                     <div className="flex-1 space-y-2">
-                                        <div className="h-4 w-40 rounded bg-neutral-200 dark:bg-neutral-800" />
-                                        <div className="h-3 w-3/4 rounded bg-neutral-200 dark:bg-neutral-800" />
+                                        <SkeletonBlock className="h-4 w-40" />
+                                        <SkeletonBlock className="h-3 w-3/4" />
                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-2 pt-1">
                                             {Array.from({ length: 3 }).map((_, j) => (
-                                                <div key={j} className="h-3 w-24 rounded bg-neutral-200 dark:bg-neutral-800" />
+                                                <SkeletonBlock key={j} className="h-3 w-24" />
                                             ))}
                                         </div>
                                     </div>

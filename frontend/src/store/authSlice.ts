@@ -129,6 +129,7 @@ const authSlice = createSlice({
 
 export const { setUser, loginSuccess } = authSlice.actions;
 export const selectAuth = (state: RootState) => state.auth;
+export const selectUserPreferences = (state: RootState) => state.auth.user?.preferences;
 export const selectUserPermissions = (state: RootState) => {
     const permissions = state.auth.user?.role?.permissions;
     if (!Array.isArray(permissions)) return new Set<string>();

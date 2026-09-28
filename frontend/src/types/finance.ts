@@ -50,6 +50,28 @@ export interface Goal {
   updated_at?: string;
 }
 
+export type RecurringFrequency = 'daily' | 'weekly' | 'monthly' | 'yearly';
+
+export interface RecurringTransaction {
+  id: number;
+  user_id: number;
+  category_id?: number | null;
+  amount: number | string;
+  currency: string;
+  type: TransactionType;
+  frequency: RecurringFrequency;
+  interval_count?: number;
+  start_date: string;
+  end_date?: string | null;
+  next_run_date: string;
+  last_run_date?: string | null;
+  notes?: string | null;
+  is_active: boolean;
+  category?: Category;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface ApiResponse<T> {
   success: boolean;
   message: string;

@@ -61,6 +61,18 @@
     z-index: 9999;
   }
 
+  /* Smooth color fade used as a fallback when the View Transitions API is
+     unavailable (or reduced motion is requested). The class is added to <html>
+     by ThemeContext and removed shortly after the swap. */
+  .theme-transition,
+  .theme-transition *,
+  .theme-transition *::before,
+  .theme-transition *::after {
+    transition: background-color 300ms ease, border-color 300ms ease,
+      color 300ms ease, fill 300ms ease, stroke 300ms ease !important;
+    transition-delay: 0s !important;
+  }
+
   body {
     background-color: var(--bg);
     color: var(--text);

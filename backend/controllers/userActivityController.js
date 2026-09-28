@@ -7,11 +7,38 @@ const asyncHandler = require('../utils/asyncHandler');
 const { success } = require('../utils/response');
 const activityService = require('../services/activityService');
 
+const VALID_STATUSES = ['warning', 'info', 'danger'];
+
 const buildDateFilter = (start_date, end_date) => {
     if (!start_date || !end_date) return undefined;
     const end = new Date(end_date);
     end.setHours(23, 59, 59, 999);
     return { [Op.between]: [new Date(start_date), end] };
+};
+
+/**
+ * Build the shared WHERE clauses for activity listings.
+ * Supports status / activity_type / free-text search in addition to dates.
+ */
+const buildActivityFilters = ({ start_date, end_date, status, activity_type, search }) => {
+    const filters = {};
+
+    const dateFilter = buildDateFilter(start_date, end_date);
+    if (dateFilter) filters.created_at = dateFilter;
+
+    if (status && VALID_STATUSES.includes(status)) filters.status = status;
+    if (activity_type) filters.activity_type = { [Op.like]: `%${activity_type}%` };
+
+    const term = typeof search === 'string' ? search.trim() : '';
+    if (term) {
+        filters[Op.or] = [
+            { description: { [Op.like]: `%${term}%` } },
+            { activity_type: { [Op.like]: `%${term}%` } },
+            { user_agent: { [Op.like]: `%${term}%` } },
+        ];
+    }
+
+    return filters;
 };
 
 /** Log a new activity (internal / admin use). */
@@ -31,11 +58,13 @@ const logActivity = asyncHandler(async (req, res) => {
 /** Get all activities for a specific user. */
 const getUserActivities = asyncHandler(async (req, res) => {
     const { user_id } = req.params;
-    const { page = 1, limit = 10, start_date, end_date } = req.query;
+    const { page = 1, limit = 10, start_date, end_date, status, activity_type, search } = req.query;
 
     const whereClause = { user_id };
-    const dateFilter = buildDateFilter(start_date, end_date);
-    if (dateFilter) whereClause.created_at = dateFilter;
+    Object.assign(
+        whereClause,
+        buildActivityFilters({ start_date, end_date, status, activity_type, search })
+    );
 
     const activities = await UserActivity.findAndCountAll({
         where: whereClause,
@@ -75,7 +104,7 @@ const getActivityById = asyncHandler(async (req, res) => {
 
 /** Get the authenticated user's activities. */
 const getMyActivities = asyncHandler(async (req, res) => {
-    const { showAll = false, page = 1, limit = 10, start_date, end_date } = req.query;
+    const { showAll = false, page = 1, limit = 10, start_date, end_date, status, activity_type, search } = req.query;
 
     const user = await User.findByPk(req.user.id);
     if (!user) {
@@ -85,8 +114,10 @@ const getMyActivities = asyncHandler(async (req, res) => {
     const whereClause = { user_id: user.id };
     if (showAll !== 'true') whereClause.is_general = true;
 
-    const dateFilter = buildDateFilter(start_date, end_date);
-    if (dateFilter) whereClause.created_at = dateFilter;
+    Object.assign(
+        whereClause,
+        buildActivityFilters({ start_date, end_date, status, activity_type, search })
+    );
 
     const activities = await UserActivity.findAndCountAll({
         where: whereClause,

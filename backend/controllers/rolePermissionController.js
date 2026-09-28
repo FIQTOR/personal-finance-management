@@ -1,6 +1,5 @@
 // Role ↔ permission assignment controller.
-const Role = require('../models/role');
-const Permission = require('../models/permission');
+const { Role, Permission } = require('../models');
 const AppError = require('../utils/AppError');
 const asyncHandler = require('../utils/asyncHandler');
 const { success } = require('../utils/response');

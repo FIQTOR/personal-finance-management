@@ -1,14 +1,19 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Download, Filter, Plus, Edit2, Trash2, ArrowUpRight, ArrowDownRight, Upload, FileUp, Trash, Search } from 'lucide-react';
+import { Download, Filter, Plus, Edit2, Trash2, ArrowUpRight, ArrowDownRight, Upload, FileUp, Trash, Search, Landmark } from 'lucide-react';
 import { TbTrashOff } from 'react-icons/tb';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { fetchTransactions, deleteTransaction } from '@/store/financeSlice';
+import { SkeletonTableRows } from '@/components/Skeleton';
+import EmptyState from '@/components/EmptyState';
 import type { Transaction, TransactionFilter } from '@/types/finance';
 import apiClient from '@/services/apiClient';
 import PanelSelect from '@/components/PanelSelect';
 import ExportMenu from '@/components/ExportMenu';
 import BulkInsertModal from '@/components/BulkInsertModal';
 import ImportModal from '@/components/ImportModal';
+import BankImportModal from '@/components/finance/BankImportModal';
+import PeriodSelector from '@/components/PeriodSelector';
+import { readStoredPeriod, periodToDateRange, type PeriodValue } from '@/components/periodConfig';
 import { useNotification } from '@/context/useNotification';
 import { getErrorMessage } from '@/utils/error';
 import { formatAmountWithCurrency } from '@/utils/currency';
@@ -19,21 +24,32 @@ interface TransactionListProps {
   onEditClick: (transaction: Transaction) => void;
 }
 
+const PERIOD_STORAGE_KEY = 'finance_period';
+
 export const TransactionList: React.FC<TransactionListProps> = ({ onAddClick, onEditClick }) => {
   const dispatch = useAppDispatch();
   const { notify, confirm } = useNotification();
-  const { transactions, categories } = useAppSelector((state) => state.finance);
+  const { transactions, categories, defaultCurrency, loading } = useAppSelector((state) => state.finance);
 
-  const [filters, setFilters] = useState<TransactionFilter>({
+  // Initial date range comes from the persisted period (FEAT-2). The manual
+  // date inputs below reflect and can override this range.
+  const [period, setPeriod] = useState<PeriodValue>(() => readStoredPeriod(PERIOD_STORAGE_KEY));
+  const [filters, setFilters] = useState<TransactionFilter>(() => ({
     category_id: '',
     currency: '',
     type: '',
-    start_date: '',
-    end_date: '',
-  });
+    ...periodToDateRange(readStoredPeriod(PERIOD_STORAGE_KEY)),
+  }));
+
+  const handlePeriodChange = (next: PeriodValue) => {
+    setPeriod(next);
+    const range = periodToDateRange(next);
+    setFilters((prev) => ({ ...prev, ...range }));
+  };
   const [isExporting, setIsExporting] = useState<boolean>(false);
   const [showBulk, setShowBulk] = useState(false);
   const [showImport, setShowImport] = useState(false);
+  const [showBankImport, setShowBankImport] = useState(false);
   const [bulkDeleteMode, setBulkDeleteMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [search, setSearch] = useState('');
@@ -128,6 +144,12 @@ export const TransactionList: React.FC<TransactionListProps> = ({ onAddClick, on
           <p className="text-sm text-gray-500 dark:text-neutral-400">View, filter, and export all financial records</p>
         </div>
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <PeriodSelector
+            value={period}
+            onChange={handlePeriodChange}
+            storageKey={PERIOD_STORAGE_KEY}
+            label="Transaction period"
+          />
           <button
             type="button"
             onClick={() => setShowImport(true)}
@@ -135,6 +157,14 @@ export const TransactionList: React.FC<TransactionListProps> = ({ onAddClick, on
           >
             <FileUp className="w-4 h-4" />
             <span className="hidden sm:inline">Import</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowBankImport(true)}
+            className="flex items-center gap-2 bg-emerald-600/90 backdrop-blur-md border border-emerald-400/40 text-white px-3 py-2 rounded-xl hover:bg-emerald-500 transition-all duration-300 shadow-lg text-sm"
+          >
+            <Landmark className="w-4 h-4" />
+            <span className="hidden sm:inline">Import Bank CSV</span>
           </button>
           <button
             type="button"
@@ -236,9 +266,17 @@ export const TransactionList: React.FC<TransactionListProps> = ({ onAddClick, on
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-neutral-800">
-              {filteredTransactions.length === 0 ? (
+              {loading && transactions.length === 0 ? (
+                <SkeletonTableRows rows={6} cols={bulkDeleteMode ? 5 : 4} withActions />
+              ) : filteredTransactions.length === 0 ? (
                 <tr>
-                  <td colSpan={bulkDeleteMode ? 6 : 5} className="px-6 py-8 text-center text-gray-400">No transactions found</td>
+                  <td colSpan={bulkDeleteMode ? 6 : 5}>
+                    <EmptyState
+                      compact
+                      title="No transactions found"
+                      description="Try widening the period or clearing the filters."
+                    />
+                  </td>
                 </tr>
               ) : (
                 filteredTransactions.map((t) => (
@@ -310,6 +348,14 @@ export const TransactionList: React.FC<TransactionListProps> = ({ onAddClick, on
       </div>
 
       <ImportModal isOpen={showImport} onClose={() => setShowImport(false)} resource="transactions" title="Import Transactions" onSuccess={refresh} />
+      <BankImportModal
+        isOpen={showBankImport}
+        onClose={() => setShowBankImport(false)}
+        categories={categories}
+        existingTransactions={transactions}
+        defaultCurrency={defaultCurrency}
+        onSuccess={refresh}
+      />
       <BulkInsertModal isOpen={showBulk} onClose={() => setShowBulk(false)} resource="transactions" title="Bulk Insert Transactions" onSuccess={refresh}
         columns={[
           { key: 'date', label: 'Date', required: true, example: new Date().toISOString().split('T')[0] },

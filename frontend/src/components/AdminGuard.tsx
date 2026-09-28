@@ -1,7 +1,7 @@
 import { useLocation } from 'react-router-dom';
 import { useAppSelector } from '@/store/hooks';
 import { selectUserPermissions, selectUserRole } from '@/store/authSlice';
-import { getRequiredPermissionForPath, isValidPanelRoute } from '@/config/panelPermissions';
+import { getRequiredPermissionForPath, hasPermission, isValidPanelRoute } from '@/config/panelPermissions';
 import Forbidden from '@/components/Forbidden';
 import NotFound from '@/components/NotFound';
 
@@ -14,8 +14,11 @@ export default function AdminGuard({ children }: AdminGuardProps) {
     const role = useAppSelector(selectUserRole);
     const permissions = useAppSelector(selectUserPermissions);
 
-    // Rule 1: If user has no role or role === "user" -> return 404 NotFound
-    if (!role || role === 'user') {
+    // Rule 1: If the user has no role at all -> return 404 NotFound.
+    // Note: the system ships a single role named `user` (the "Personal Finance
+    // System Owner"), so a role *name* of `user` is a valid panel role and must
+    // not be rejected here.
+    if (!role) {
         return <NotFound />;
     }
 
@@ -24,9 +27,9 @@ export default function AdminGuard({ children }: AdminGuardProps) {
         return <NotFound />;
     }
 
-    // Rule 3: If user role !== "user" BUT user lacks permission for this panel page -> return Forbidden
+    // Rule 3: If the user lacks permission for this panel page -> return Forbidden
     const requiredPermission = getRequiredPermissionForPath(location.pathname);
-    if (requiredPermission && !permissions.has(requiredPermission)) {
+    if (!hasPermission(permissions, requiredPermission)) {
         return <Forbidden />;
     }
 

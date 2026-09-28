@@ -1,5 +1,8 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/user');
+// Requiring this registers the `User.hasOne(UserPreference, { as: 'preferences' })`
+// association so the profile can eager-load the user's preferences below.
+const UserPreference = require('../models/userPreference');
 const Role = require('../models/role');
 const Permission = require('../models/permission');
 const RolePermission = require('../models/rolePermission');
@@ -26,8 +29,9 @@ const RESEND_COOLDOWN_SECONDS = 60;
  * Load a user with their role and permissions.
  * @param {object} where
  * @param {boolean} [withSecrets=false] - include password (for login only).
+ * @param {Array} [extraIncludes=[]] - additional associations to eager-load.
  */
-const findUserWithRole = (where, withSecrets = false) =>
+const findUserWithRole = (where, withSecrets = false, extraIncludes = []) =>
     User.scope(withSecrets ? 'withSecrets' : 'defaultScope').findOne({
         where,
         include: [{
@@ -38,7 +42,7 @@ const findUserWithRole = (where, withSecrets = false) =>
                 attributes: ['name', 'description'],
                 through: { attributes: [] },
             }],
-        }],
+        }, ...extraIncludes],
     });
 
 /**
@@ -488,6 +492,21 @@ exports.getAuthPermissions = asyncHandler(async (req, res) => {
         throw new AppError('User or role not found', 404, { code: 'USER_NOT_FOUND' });
     }
 
+    // Preferences are loaded separately (and defensively): a missing
+    // `user_preferences` table or any failure here must never break auth.
+    let preferences = { theme: 'light', language: 'en' };
+    try {
+        const { UserPreference } = require('../models');
+        const pref = await UserPreference.findOne({
+            where: { user_id: user.id },
+            attributes: ['theme', 'language'],
+        });
+        if (pref) preferences = { theme: pref.theme, language: pref.language };
+    } catch (error) {
+        // eslint-disable-next-line no-console
+        console.error('Failed to load user preferences (using defaults):', error.message);
+    }
+
     return success(res, {
         message: 'Permissions retrieved successfully',
         data: {
@@ -500,6 +519,7 @@ exports.getAuthPermissions = asyncHandler(async (req, res) => {
                 is_blocked: user.is_blocked,
                 created_at: user.created_at,
                 updated_at: user.updated_at,
+                preferences,
                 role: {
                     name: user.role.name,
                     permissions: user.role.permissions,

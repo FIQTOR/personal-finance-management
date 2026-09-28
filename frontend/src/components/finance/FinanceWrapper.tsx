@@ -1,6 +1,6 @@
 import { useEffect, type ReactNode } from 'react';
 import { useAppDispatch } from '@/store/hooks';
-import { fetchCategories, fetchTransactions, fetchBudgets, fetchGoals, fetchAppSettings } from '@/store/financeSlice';
+import { fetchCategories, fetchTransactions, fetchBudgets, fetchGoals, fetchAppSettings, fetchRecurringTransactions } from '@/store/financeSlice';
 
 interface FinanceWrapperProps {
   children?: ReactNode;
@@ -15,6 +15,7 @@ export default function FinanceWrapper({ children }: FinanceWrapperProps) {
     dispatch(fetchTransactions());
     dispatch(fetchBudgets());
     dispatch(fetchGoals());
+    dispatch(fetchRecurringTransactions());
   }, [dispatch]);
 
   return (

@@ -21,6 +21,11 @@ import AppConfig from '@/config/AppConfig';
 import { useLanguage } from '@/context/useLanguage';
 import { useNotification } from '@/context/useNotification';
 import { getErrorMessage } from '@/utils/error';
+import PeriodSelector from '@/components/PeriodSelector';
+import { DEFAULT_PERIOD_OPTIONS, readStoredPeriod, type PeriodValue } from '@/components/periodConfig';
+import EmptyState from '@/components/EmptyState';
+import { SkeletonBlock, SkeletonCardGrid } from '@/components/Skeleton';
+import Can from '@/components/Can';
 
 ChartJS.register(
     CategoryScale,
@@ -58,12 +63,24 @@ interface DashboardSummary {
     totalUsers?: number;
 }
 
+interface DashboardUsers {
+    total?: number;
+    active?: number;
+    blocked?: number;
+    verified?: number;
+    newInPeriod?: number;
+    verificationRate?: number;
+}
+
 interface DashboardAnalytics {
     summary?: DashboardSummary;
     monthlyTrends?: MonthlyTrend[];
     expensesByCategory?: Record<string, number>;
     recentActivities?: RecentActivity[];
+    users?: DashboardUsers;
 }
+
+const PERIOD_STORAGE_KEY = 'dashboard_period';
 
 export default function Dashboard() {
     const { user } = useAppSelector(selectAuth);
@@ -74,12 +91,13 @@ export default function Dashboard() {
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [isExportOpen, setIsExportOpen] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
+    const [period, setPeriod] = useState<PeriodValue>(() => readStoredPeriod(PERIOD_STORAGE_KEY));
     const exportRef = useRef<HTMLDivElement>(null);
 
-    const fetchAnalytics = useCallback(async () => {
+    const fetchAnalytics = useCallback(async (selectedPeriod: PeriodValue) => {
         try {
             setLoading(true);
-            const response = await apiClient.get(`/analytics/dashboard`);
+            const response = await apiClient.get(`/analytics/dashboard`, { params: { period: selectedPeriod } });
             setAnalytics(response.data?.data || null);
         } catch (error) {
             notify(getErrorMessage(error, 'Error fetching analytics'), 'error');
@@ -90,8 +108,13 @@ export default function Dashboard() {
 
     useEffect(() => {
         document.title = `Dashboard ${AppConfig.exTitle}`;
-        fetchAnalytics();
-    }, [fetchAnalytics]);
+    }, []);
+
+    // Fetch whenever the selected period changes (and on first mount).
+    useEffect(() => {
+        localStorage.setItem(PERIOD_STORAGE_KEY, period);
+        fetchAnalytics(period);
+    }, [period, fetchAnalytics]);
 
     useEffect(() => {
         const onClickOutside = (e: MouseEvent) => {
@@ -103,7 +126,7 @@ export default function Dashboard() {
 
     const refreshData = async () => {
         setIsRefreshing(true);
-        await fetchAnalytics();
+        await fetchAnalytics(period);
         setIsRefreshing(false);
     };
 
@@ -128,50 +151,56 @@ export default function Dashboard() {
 
     if (loading || !analytics) {
         return (
-            <div className="p-6 h-full space-y-6 animate-pulse">
+            <div className="p-6 h-full space-y-6">
                 {/* Header */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-neutral-900/80 p-6 rounded-3xl border border-gray-100 dark:border-neutral-800/80 shadow-xs">
                     <div className="space-y-2">
-                        <div className="h-7 w-48 rounded-lg bg-gray-200 dark:bg-neutral-800" />
-                        <div className="h-4 w-72 max-w-full rounded bg-gray-200 dark:bg-neutral-800" />
+                        <SkeletonBlock className="h-7 w-48" />
+                        <SkeletonBlock className="h-4 w-72 max-w-full" />
                     </div>
                     <div className="flex items-center gap-3">
-                        <div className="h-10 w-28 rounded-xl bg-gray-200 dark:bg-neutral-800" />
-                        <div className="h-10 w-28 rounded-xl bg-gray-200 dark:bg-neutral-800" />
+                        <SkeletonBlock className="h-10 w-32 rounded-xl" />
+                        <SkeletonBlock className="h-10 w-28 rounded-xl" />
+                        <SkeletonBlock className="h-10 w-28 rounded-xl" />
                     </div>
                 </div>
 
                 {/* Welcome Banner */}
                 <div className="p-6 rounded-3xl bg-emerald-500/5 border border-gray-100 dark:border-neutral-800/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                     <div className="space-y-2">
-                        <div className="h-6 w-56 rounded bg-gray-200 dark:bg-neutral-800" />
-                        <div className="h-4 w-64 max-w-full rounded bg-gray-200 dark:bg-neutral-800" />
+                        <SkeletonBlock className="h-6 w-56" />
+                        <SkeletonBlock className="h-4 w-64 max-w-full" />
                     </div>
-                    <div className="h-8 w-28 rounded-full bg-gray-200 dark:bg-neutral-800" />
+                    <SkeletonBlock className="h-8 w-28 rounded-full" />
                 </div>
 
                 {/* Metrics Cards */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-                    {Array.from({ length: 5 }).map((_, i) => (
-                        <div key={i} className="bg-white dark:bg-neutral-900/80 p-5 rounded-2xl border border-gray-100 dark:border-neutral-800/80 space-y-3">
-                            <div className="flex items-center justify-between">
-                                <div className="h-3 w-20 rounded bg-gray-200 dark:bg-neutral-800" />
-                                <div className="w-8 h-8 rounded-xl bg-gray-200 dark:bg-neutral-800" />
-                            </div>
-                            <div className="h-6 w-24 rounded bg-gray-200 dark:bg-neutral-800" />
-                        </div>
-                    ))}
-                </div>
+                <SkeletonCardGrid count={5} cols="grid-cols-1 sm:grid-cols-2 lg:grid-cols-5" />
 
                 {/* Charts */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     <div className="lg:col-span-2 bg-white dark:bg-neutral-900/80 p-6 rounded-3xl border border-gray-100 dark:border-neutral-800/80 space-y-4">
-                        <div className="h-5 w-40 rounded bg-gray-200 dark:bg-neutral-800" />
-                        <div className="h-64 w-full rounded-2xl bg-gray-200 dark:bg-neutral-800" />
+                        <SkeletonBlock className="h-5 w-40" />
+                        <SkeletonBlock className="h-64 w-full rounded-2xl" />
                     </div>
                     <div className="bg-white dark:bg-neutral-900/80 p-6 rounded-3xl border border-gray-100 dark:border-neutral-800/80 space-y-4">
-                        <div className="h-5 w-32 rounded bg-gray-200 dark:bg-neutral-800" />
-                        <div className="h-64 w-full rounded-2xl bg-gray-200 dark:bg-neutral-800" />
+                        <SkeletonBlock className="h-5 w-32" />
+                        <SkeletonBlock className="h-64 w-full rounded-2xl" />
+                    </div>
+                </div>
+
+                {/* Activity + Goals */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div className="bg-white dark:bg-neutral-900/80 p-6 rounded-3xl border border-gray-100 dark:border-neutral-800/80 space-y-4">
+                        <SkeletonBlock className="h-5 w-48" />
+                        {Array.from({ length: 4 }).map((_, i) => (
+                            <SkeletonBlock key={i} className="h-14 w-full rounded-2xl" />
+                        ))}
+                    </div>
+                    <div className="bg-white dark:bg-neutral-900/80 p-6 rounded-3xl border border-gray-100 dark:border-neutral-800/80 space-y-4">
+                        <SkeletonBlock className="h-5 w-40" />
+                        <SkeletonBlock className="h-3 w-2/3" />
+                        <SkeletonBlock className="h-3 w-full rounded-full" />
                     </div>
                 </div>
             </div>
@@ -235,6 +264,13 @@ export default function Dashboard() {
                     </p>
                 </div>
                 <div className="flex items-center gap-3">
+                    <PeriodSelector
+                        value={period}
+                        onChange={setPeriod}
+                        storageKey={PERIOD_STORAGE_KEY}
+                        options={DEFAULT_PERIOD_OPTIONS}
+                        label="Analytics period"
+                    />
                     <button
                         onClick={refreshData}
                         disabled={isRefreshing}
@@ -244,6 +280,7 @@ export default function Dashboard() {
                         {isRefreshing ? 'Refreshing...' : 'Refresh'}
                     </button>
                     <div ref={exportRef} className="relative">
+                        <Can permission="manage_users">
                         <button
                             onClick={() => setIsExportOpen((v) => !v)}
                             disabled={isExporting}
@@ -269,6 +306,7 @@ export default function Dashboard() {
                                 </button>
                             </div>
                         )}
+                        </Can>
                     </div>
                 </div>
             </div>
@@ -383,7 +421,12 @@ export default function Dashboard() {
                     </div>
                     <div className="space-y-3">
                         {recentActivities.length === 0 ? (
-                            <p className="text-xs text-gray-400 dark:text-neutral-500 py-4 text-center">No recent activities recorded.</p>
+                            <EmptyState
+                                compact
+                                icon={<TbActivity className="w-8 h-8" />}
+                                title="No recent activities"
+                                description="Your recent account and finance activity will appear here."
+                            />
                         ) : (
                             recentActivities.map((act) => (
                                 <div key={act.id} className="flex items-center justify-between p-3 rounded-2xl bg-gray-50 dark:bg-neutral-800/50 border border-gray-100 dark:border-neutral-800/60 text-xs">

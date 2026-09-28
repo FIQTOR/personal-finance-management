@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { TbArrowsSort, TbSquareCheck, TbSquare } from 'react-icons/tb'
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
+import { SkeletonTableRows } from '@/components/Skeleton'
 
 // Generic interfaces for any data type
 export interface ColumnConfig<T extends object = object> {
@@ -208,87 +209,72 @@ const StaticDataTable = <T extends object = object>({
         <div className="flex-1 overflow-auto relative z-10">
             <div className="h-full flex flex-col min-h-0">
                 <div className={`overflow-x-auto ${wrapperClassName}`}>
-                    <table className={`w-full ${borderless ? '' : 'border border-white/20 dark:border-neutral-600'
-                        } rounded-2xl bg-white/10 dark:bg-neutral-800/50 backdrop-blur-lg min-w-[${minTableWidth}] ${tableClassName}`}>
+                    <div
+                        className={`rounded-2xl overflow-hidden ${borderless ? '' : 'border border-white/20 dark:border-neutral-600'
+                            } bg-white/10 dark:bg-neutral-800/50 backdrop-blur-lg ${tableClassName}`}
+                    >
+                        <table
+                            className="w-full border-separate border-spacing-0"
+                            style={{ minWidth: minTableWidth } as CSSProperties}
+                        >
 
-                        {/* Table Header */}
-                        <thead className={`bg-white dark:bg-neutral-800 ${borderless ? '' : 'border-b border-gray-100/20 dark:border-neutral-600/20'
-                            } ${stickyHeader ? 'sticky top-0 z-10' : ''}`}>
-                            <tr>
-                                {selectable && (
-                                    <th className={`w-8 px-2 py-3 text-center ${compact ? 'py-2' : 'py-3'}`}>
-                                        <button
-                                            onClick={onSelectAll}
-                                            disabled={data.length === 0}
-                                            className="flex items-center justify-center w-5 h-5 text-gray-600 dark:text-neutral-300 hover:text-purple-600 dark:hover:text-purple-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                            title={isAllSelected ? 'Deselect all' : 'Select all'}
-                                        >
-                                            {isAllSelected ? (
-                                                <TbSquareCheck className="w-4 h-4" />
+                            {/* Table Header */}
+                            <thead className={`bg-white dark:bg-neutral-800 ${borderless ? '' : 'border-b border-gray-100/20 dark:border-neutral-600/20'
+                                } ${stickyHeader ? 'sticky top-0 z-10' : ''}`}>
+                                <tr>
+                                    {selectable && (
+                                        <th className={`w-8 px-2 py-3 text-center ${compact ? 'py-2' : 'py-3'}`}>
+                                            <button
+                                                onClick={onSelectAll}
+                                                disabled={data.length === 0}
+                                                className="flex items-center justify-center w-5 h-5 text-gray-600 dark:text-neutral-300 hover:text-purple-600 dark:hover:text-purple-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                                title={isAllSelected ? 'Deselect all' : 'Select all'}
+                                            >
+                                                {isAllSelected ? (
+                                                    <TbSquareCheck className="w-4 h-4" />
+                                                ) : (
+                                                    <TbSquare className="w-4 h-4" />
+                                                )}
+                                            </button>
+                                        </th>
+                                    )}
+
+                                    {columns.map((column, index) => (
+                                        <th key={`${String(column.key)}-${index}`} className={getHeaderCellClasses(column)}>
+                                            {column.sortable && onSort ? (
+                                                <div className="flex items-center gap-1 cursor-pointer" onClick={() => onSort(column.key)}>
+                                                    <span className="text-xs font-medium text-gray-700 dark:text-neutral-300">
+                                                        {column.label}
+                                                    </span>
+                                                    <TbArrowsSort className={`w-3 h-3 hover:text-purple-600 dark:hover:text-purple-400 ${orderBy === column.key ? 'text-purple-600 dark:text-purple-400' : ''
+                                                        }`} />
+                                                </div>
                                             ) : (
-                                                <TbSquare className="w-4 h-4" />
-                                            )}
-                                        </button>
-                                    </th>
-                                )}
-
-                                {columns.map((column, index) => (
-                                    <th key={`${String(column.key)}-${index}`} className={getHeaderCellClasses(column)}>
-                                        {column.sortable && onSort ? (
-                                            <div className="flex items-center gap-1 cursor-pointer" onClick={() => onSort(column.key)}>
                                                 <span className="text-xs font-medium text-gray-700 dark:text-neutral-300">
                                                     {column.label}
                                                 </span>
-                                                <TbArrowsSort className={`w-3 h-3 hover:text-purple-600 dark:hover:text-purple-400 ${orderBy === column.key ? 'text-purple-600 dark:text-purple-400' : ''
-                                                    }`} />
-                                            </div>
-                                        ) : (
-                                            <span className="text-xs font-medium text-gray-700 dark:text-neutral-300">
-                                                {column.label}
-                                            </span>
-                                        )}
-                                    </th>
-                                ))}
+                                            )}
+                                        </th>
+                                    ))}
 
-                                {actions.length > 0 && (
-                                    <th className={`w-24 px-3 py-3 text-center ${compact ? 'py-2' : 'py-3'}`}>
-                                        <span className="text-xs font-medium text-gray-700 dark:text-neutral-300">Actions</span>
-                                    </th>
-                                )}
-                            </tr>
-                        </thead>
+                                    {actions.length > 0 && (
+                                        <th className={`w-24 px-3 py-3 text-center ${compact ? 'py-2' : 'py-3'}`}>
+                                            <span className="text-xs font-medium text-gray-700 dark:text-neutral-300">Actions</span>
+                                        </th>
+                                    )}
+                                </tr>
+                            </thead>
 
-                        {/* Table Body */}
-                        <tbody className={borderless ? '' : 'divide-y divide-gray-100/50 dark:divide-neutral-600/50'}>
-                            {loading ? (
-                                Array.from({ length: Math.min(limit || 5, 8) }).map((_, rowIndex) => (
-                                    <tr key={`skeleton-${rowIndex}`} className="animate-pulse">
-                                        {selectable && (
-                                            <td className={`px-2 py-3 text-center ${compact ? 'py-2' : 'py-3'}`}>
-                                                <div className="w-4 h-4 mx-auto bg-gray-200 dark:bg-neutral-700/60 rounded"></div>
-                                            </td>
-                                        )}
-                                        {columns.map((column, colIndex) => {
-                                            const hideClasses = [
-                                                column.hideOnMobile ? 'hidden sm:table-cell' : '',
-                                                column.hideOnTablet ? 'hidden lg:table-cell' : '',
-                                                column.hideOnDesktop ? 'hidden xl:table-cell' : ''
-                                            ].filter(Boolean).join(' ');
-                                            const widthClass = colIndex % 3 === 0 ? 'w-3/4' : colIndex % 3 === 1 ? 'w-1/2' : 'w-2/3';
-                                            return (
-                                                <td key={`skeleton-col-${colIndex}`} className={`px-3 py-3 ${compact ? 'py-2' : 'py-3'} ${hideClasses}`}>
-                                                    <div className={`h-4 bg-gray-200 dark:bg-neutral-700/60 rounded ${widthClass}`}></div>
-                                                </td>
-                                            );
-                                        })}
-                                        {actions.length > 0 && (
-                                            <td className={`w-24 px-3 py-3 text-center ${compact ? 'py-2' : 'py-3'}`}>
-                                                <div className="w-12 h-4 mx-auto bg-gray-200 dark:bg-neutral-700/60 rounded"></div>
-                                            </td>
-                                        )}
-                                    </tr>
-                                ))
-                            ) : data.length === 0 ? (
+                            {/* Table Body */}
+                            <tbody className={borderless ? '' : 'divide-y divide-gray-100/50 dark:divide-neutral-600/50'}>
+                                {loading ? (
+                                    <SkeletonTableRows
+                                        rows={Math.min(limit || 5, 8)}
+                                        cols={columns.length + (selectable ? 1 : 0)}
+                                        compact={compact}
+                                        withActions={actions.length > 0}
+                                    />
+                                ) : data.length === 0 ? (
                                 <tr>
                                     <td colSpan={columns.length + (selectable ? 1 : 0) + (actions.length > 0 ? 1 : 0)} className="text-center py-12">
                                         <span className="text-sm text-gray-500 dark:text-neutral-400">{emptyMessage}</span>
@@ -388,6 +374,7 @@ const StaticDataTable = <T extends object = object>({
                             )}
                         </tbody>
                     </table>
+                    </div>
                 </div>
 
                 {/* Pagination Component */}
